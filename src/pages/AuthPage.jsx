@@ -4,8 +4,8 @@ import { C, fontStack, inputStyle } from "../theme";
 import logo from "../assets/logo.png";
 
 export default function AuthPage() {
-  const { signIn, signUp } = useAuth();
-  const [mode, setMode] = useState("login"); // "login" | "signup"
+  const { signIn, signUp, sendPasswordReset } = useAuth();
+  const [mode, setMode] = useState("login"); // "login" | "signup" | "forgot"
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -19,7 +19,10 @@ export default function AuthPage() {
     setInfo("");
     setBusy(true);
     try {
-      if (mode === "login") {
+      if (mode === "forgot") {
+        await sendPasswordReset(email);
+        setInfo("Check your email for a link to reset your password.");
+      } else if (mode === "login") {
         await signIn({ email, password });
       } else {
         const result = await signUp({ email, password, name });
@@ -58,40 +61,42 @@ export default function AuthPage() {
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
-          <button
-            onClick={() => setMode("login")}
-            style={{
-              flex: 1,
-              fontSize: 12.5,
-              fontWeight: 700,
-              padding: "8px 0",
-              borderRadius: 20,
-              border: "none",
-              cursor: "pointer",
-              background: mode === "login" ? C.ink : C.paperMuted,
-              color: mode === "login" ? "#fff" : C.textSecondary,
-            }}
-          >
-            Sign in
-          </button>
-          <button
-            onClick={() => setMode("signup")}
-            style={{
-              flex: 1,
-              fontSize: 12.5,
-              fontWeight: 700,
-              padding: "8px 0",
-              borderRadius: 20,
-              border: "none",
-              cursor: "pointer",
-              background: mode === "signup" ? C.ink : C.paperMuted,
-              color: mode === "signup" ? "#fff" : C.textSecondary,
-            }}
-          >
-            Create account
-          </button>
-        </div>
+        {mode !== "forgot" && (
+          <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+            <button
+              onClick={() => { setMode("login"); setError(""); setInfo(""); }}
+              style={{
+                flex: 1,
+                fontSize: 12.5,
+                fontWeight: 700,
+                padding: "8px 0",
+                borderRadius: 20,
+                border: "none",
+                cursor: "pointer",
+                background: mode === "login" ? C.ink : C.paperMuted,
+                color: mode === "login" ? "#fff" : C.textSecondary,
+              }}
+            >
+              Sign in
+            </button>
+            <button
+              onClick={() => { setMode("signup"); setError(""); setInfo(""); }}
+              style={{
+                flex: 1,
+                fontSize: 12.5,
+                fontWeight: 700,
+                padding: "8px 0",
+                borderRadius: 20,
+                border: "none",
+                cursor: "pointer",
+                background: mode === "signup" ? C.ink : C.paperMuted,
+                color: mode === "signup" ? "#fff" : C.textSecondary,
+              }}
+            >
+              Create account
+            </button>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {mode === "signup" && (
@@ -103,22 +108,36 @@ export default function AuthPage() {
               </div>
             </>
           )}
+          {mode === "forgot" && (
+            <div style={{ fontSize: 12, color: C.textSecondary }}>Enter your email and we'll send you a link to reset your password.</div>
+          )}
           <div>
             <label style={{ fontSize: 11, color: C.textMuted, fontWeight: 700 }}>Email</label>
             <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} placeholder="you@example.com" />
           </div>
-          <div>
-            <label style={{ fontSize: 11, color: C.textMuted, fontWeight: 700 }}>Password</label>
-            <input
-              required
-              type="password"
-              minLength={6}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              style={inputStyle}
-              placeholder="At least 6 characters"
-            />
-          </div>
+          {mode !== "forgot" && (
+            <div>
+              <label style={{ fontSize: 11, color: C.textMuted, fontWeight: 700 }}>Password</label>
+              <input
+                required
+                type="password"
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={inputStyle}
+                placeholder="At least 6 characters"
+              />
+            </div>
+          )}
+          {mode === "login" && (
+            <button
+              type="button"
+              onClick={() => { setMode("forgot"); setError(""); setInfo(""); }}
+              style={{ alignSelf: "flex-end", background: "none", border: "none", cursor: "pointer", color: C.textSecondary, fontSize: 12, textDecoration: "underline", padding: 0 }}
+            >
+              Forgot password?
+            </button>
+          )}
 
           {error && <div style={{ fontSize: 12.5, color: "#A6403C", background: "#F3E9E9", borderRadius: 6, padding: "8px 10px" }}>{error}</div>}
           {info && <div style={{ fontSize: 12.5, color: C.success, background: C.successSoft, borderRadius: 6, padding: "8px 10px" }}>{info}</div>}
@@ -139,8 +158,18 @@ export default function AuthPage() {
               opacity: busy ? 0.7 : 1,
             }}
           >
-            {busy ? "Please wait..." : mode === "login" ? "Sign in" : "Create account"}
+            {busy ? "Please wait..." : mode === "login" ? "Sign in" : mode === "signup" ? "Create account" : "Send reset link"}
           </button>
+
+          {mode === "forgot" && (
+            <button
+              type="button"
+              onClick={() => { setMode("login"); setError(""); setInfo(""); }}
+              style={{ background: "none", border: "none", cursor: "pointer", color: C.textSecondary, fontSize: 12.5, textDecoration: "underline", padding: 0 }}
+            >
+              Back to sign in
+            </button>
+          )}
         </form>
       </div>
     </div>

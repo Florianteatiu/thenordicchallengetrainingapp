@@ -45,6 +45,15 @@ create policy "clients_see_own_coach" on public.coaches
   using (id in (select coach_id from public.clients where id = auth.uid()));
 
 -- ----------------------------------------------------------------------------
+-- Coach phone number: `coaches` had no column for it, so the app's "Call"
+-- button on the athlete's Coach tab had a hardcoded placeholder number.
+-- No new policy needed — the existing "coach sees/updates own row" and
+-- "clients_see_own_coach" policies already select/update every column.
+-- ----------------------------------------------------------------------------
+
+alter table public.coaches add column if not exists phone text;
+
+-- ----------------------------------------------------------------------------
 -- Program templates: coach_id on programs, so a program can exist before any
 -- client is assigned to it.
 -- ----------------------------------------------------------------------------

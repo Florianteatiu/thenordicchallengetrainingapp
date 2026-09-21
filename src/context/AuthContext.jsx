@@ -19,6 +19,7 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null); // { role: "coach" | "client", ...row }
   const [loading, setLoading] = useState(true);
+  const [passwordRecovery, setPasswordRecovery] = useState(false);
 
   // There's no unified "profiles" table — a signed-in user is either a row
   // in `coaches` or a row in `clients` (by matching auth.uid() = id).
@@ -67,7 +68,8 @@ export function AuthProvider({ children }) {
       setLoading(false);
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      if (event === "PASSWORD_RECOVERY") setPasswordRecovery(true);
       setSession(newSession);
       await loadProfile(newSession?.user);
     });
@@ -116,15 +118,29 @@ export function AuthProvider({ children }) {
     if (session?.user) await loadProfile(session.user);
   }
 
+  async function sendPasswordReset(email) {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+    if (error) throw error;
+  }
+
+  async function updatePassword(newPassword) {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+    setPasswordRecovery(false);
+  }
+
   const value = {
     session,
     user: session?.user ?? null,
     profile,
     loading,
+    passwordRecovery,
     signUp,
     signIn,
     signOut,
     refreshProfile,
+    sendPasswordReset,
+    updatePassword,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

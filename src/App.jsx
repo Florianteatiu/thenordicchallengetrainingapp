@@ -1,12 +1,13 @@
 import React from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import AuthPage from "./pages/AuthPage";
+import ResetPasswordForm from "./pages/ResetPasswordForm";
 import CoachDashboard from "./coach/CoachDashboard";
 import PTApp from "./client/PTApp";
 import { C, fontStack } from "./theme";
 
 function Root() {
-  const { session, profile, loading } = useAuth();
+  const { session, profile, loading, passwordRecovery } = useAuth();
 
   if (loading) {
     return (
@@ -15,6 +16,11 @@ function Root() {
       </div>
     );
   }
+
+  // Clicking a "reset your password" email link signs the user in
+  // temporarily and fires this — show the reset form before anything else,
+  // regardless of role.
+  if (passwordRecovery) return <ResetPasswordForm />;
 
   if (!session) return <AuthPage />;
 

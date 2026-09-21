@@ -788,7 +788,9 @@ function CoachTab({ coach, messages, onSend, onSignOut }) {
       </div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        <a href="tel:+15551234567" style={{ ...ghostBtn, flex: 1, justifyContent: "center", textDecoration: "none" }}><Phone size={14} /> Call</a>
+        {coach?.phone && (
+          <a href={`tel:${coach.phone}`} style={{ ...ghostBtn, flex: 1, justifyContent: "center", textDecoration: "none" }}><Phone size={14} /> Call</a>
+        )}
         <a href={`mailto:${coach?.email || ""}?subject=Question about my program`} style={{ ...ghostBtn, flex: 1, justifyContent: "center", textDecoration: "none" }}><Mail size={14} /> Email</a>
       </div>
 
