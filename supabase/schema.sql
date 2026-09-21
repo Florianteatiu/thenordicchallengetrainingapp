@@ -17,7 +17,7 @@ create extension if not exists "pgcrypto";
 -- ----------------------------------------------------------------------------
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
-  role text not null check (role in ('coach', 'client')),
+  role text not null default 'client',
   name text not null default '',
   email text,
   avatar_url text,
@@ -28,6 +28,28 @@ create table if not exists public.profiles (
   last_active_at timestamptz not null default now(),
   created_at timestamptz not null default now()
 );
+
+-- Backfills these columns onto a "profiles" table that already existed
+-- before this script ran (e.g. a leftover from an earlier partial run, or a
+-- pre-existing table with a different shape) — CREATE TABLE IF NOT EXISTS
+-- above is a no-op in that case, so this is what actually adds them.
+alter table public.profiles add column if not exists role text not null default 'client';
+alter table public.profiles add column if not exists name text not null default '';
+alter table public.profiles add column if not exists email text;
+alter table public.profiles add column if not exists avatar_url text;
+alter table public.profiles add column if not exists coach_id uuid references public.profiles(id) on delete set null;
+alter table public.profiles add column if not exists xp_base integer not null default 0;
+alter table public.profiles add column if not exists weekly_target integer not null default 4;
+alter table public.profiles add column if not exists joined_challenge boolean not null default false;
+alter table public.profiles add column if not exists last_active_at timestamptz not null default now();
+alter table public.profiles add column if not exists created_at timestamptz not null default now();
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'profiles_role_check') then
+    alter table public.profiles add constraint profiles_role_check check (role in ('coach', 'client'));
+  end if;
+end $$;
 
 -- ----------------------------------------------------------------------------
 -- programs — one active training program per client
