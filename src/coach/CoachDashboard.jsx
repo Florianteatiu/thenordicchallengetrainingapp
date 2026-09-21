@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  Users, MessageCircle, Trophy, Search, Trash2, Plus, ChevronRight,
+  Users, MessageCircle, Trophy, Search, Trash2, Plus, ChevronRight, X,
   Image as ImageIcon, Send, Flame, Clock, LogOut, LayoutTemplate,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -9,7 +9,7 @@ import logo from "../assets/logo.png";
 import { initialsFor } from "../lib/utils";
 import { fetchClientsForCoach } from "../lib/api/clients";
 import {
-  fetchProgramWithExercises, fetchProgramById, createProgram, updateProgramMeta, deleteProgram,
+  fetchProgramsForClient, fetchProgramById, createProgram, updateProgramMeta, deleteProgram,
   addExercise, updateExercise, deleteExercise,
   fetchTemplatesForCoach, createTemplate, assignTemplateToClient,
 } from "../lib/api/programs";
@@ -120,35 +120,33 @@ function ClientList({ clients, selectedId, onSelect }) {
   );
 }
 
+// Keeps its own local text so typing a comma or trailing space isn't
+// immediately stripped by re-deriving the input's value from the parsed
+// array on every keystroke (that was the bug). Only parses + commits on
+// blur. `key={exercise.id}` at the call site resets this when the exercise
+// being edited changes.
+function AlternativesInput({ value, onCommit }) {
+  const [text, setText] = useState((value || []).join(", "));
+  function commit() {
+    onCommit(text.split(",").map((s) => s.trim()).filter(Boolean));
+  }
+  return (
+    <input
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }}
+      style={editInputStyle}
+    />
+  );
+}
+
 // ---------- Program editor ----------
-function ProgramEditor({ program, templates, onAssignTemplate, assigningTemplateId, onEditField, onEditAlternatives, onRemove, onAdd, onEditMeta, onCreate, creating }) {
+function ProgramEditor({ program, onEditField, onEditAlternatives, onRemove, onAdd, onEditMeta }) {
   if (!program) {
     return (
-      <div style={{ ...cardStyle, padding: 20, textAlign: "center" }}>
-        <div style={{ fontSize: 13.5, color: C.textSecondary, marginBottom: 12 }}>This client doesn't have a program yet.</div>
-        <button onClick={onCreate} disabled={creating} style={{ ...ghostBtn, margin: "0 auto" }}>
-          <Plus size={14} /> {creating ? "Creating..." : "Create blank program"}
-        </button>
-        {templates && templates.length > 0 && (
-          <div style={{ textAlign: "left", marginTop: 18 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.textSecondary, marginBottom: 8 }}>OR ASSIGN A TEMPLATE</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {templates.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => onAssignTemplate(t.id)}
-                  disabled={assigningTemplateId === t.id}
-                  style={{ ...ghostBtn, justifyContent: "space-between", width: "100%" }}
-                >
-                  <span>{t.title || "Untitled"}</span>
-                  <span style={{ color: C.textMuted, fontWeight: 600 }}>
-                    {assigningTemplateId === t.id ? "Assigning..." : `${t.exerciseCount} ex.`}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+      <div style={{ ...cardStyle, padding: 20, textAlign: "center", fontSize: 13.5, color: C.textSecondary }}>
+        No program selected.
       </div>
     );
   }
@@ -202,7 +200,7 @@ function ProgramEditor({ program, templates, onAssignTemplate, assigningTemplate
           <label style={{ fontSize: 10, color: C.textMuted, fontWeight: 700 }}>Form cue</label>
           <textarea value={ex.cue || ""} onChange={(e) => onEditField(ex.id, "cue", e.target.value)} style={{ ...editInputStyle, minHeight: 36, resize: "vertical", marginBottom: 8 }} />
           <label style={{ fontSize: 10, color: C.textMuted, fontWeight: 700 }}>Alternatives (comma separated)</label>
-          <input value={(ex.alternatives || []).join(", ")} onChange={(e) => onEditAlternatives(ex.id, e.target.value)} style={editInputStyle} />
+          <AlternativesInput key={ex.id} value={ex.alternatives} onCommit={(list) => onEditAlternatives(ex.id, list)} />
         </div>
       ))}
 
@@ -272,8 +270,52 @@ function MessagesThread({ messages, onSend }) {
   );
 }
 
+// ---------- Program picker (a client can have more than one over time) ----------
+function ProgramPicker({ clientPrograms, activeProgramId, onSelectProgram, onCreateProgram, creatingProgram, templates, onAssignTemplate, assigningTemplateId, onDeleteProgram }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      {clientPrograms.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+          {clientPrograms.map((p) => (
+            <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 2, background: p.id === activeProgramId ? C.ink : C.paperMuted, borderRadius: 20, paddingRight: 4 }}>
+              <button onClick={() => onSelectProgram(p.id)} style={{
+                fontSize: 12, fontWeight: 700, padding: "6px 4px 6px 12px", borderRadius: 20, border: "none", cursor: "pointer", background: "none",
+                color: p.id === activeProgramId ? "#fff" : C.textSecondary,
+              }}>
+                {p.title || "Untitled"} <span style={{ opacity: 0.7, fontWeight: 600 }}>· {p.exerciseCount}</span>
+              </button>
+              <button onClick={() => onDeleteProgram(p.id)} aria-label="Delete program" style={{
+                width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "50%", border: "none", cursor: "pointer", background: "none",
+                color: p.id === activeProgramId ? "rgba(255,255,255,0.7)" : C.textMuted,
+              }}>
+                <X size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+        <button onClick={onCreateProgram} disabled={creatingProgram} style={ghostBtn}>
+          <Plus size={13} /> {creatingProgram ? "Creating..." : "New blank program"}
+        </button>
+        {templates.length > 0 && (
+          <select
+            value=""
+            onChange={(e) => { if (e.target.value) onAssignTemplate(e.target.value); }}
+            disabled={!!assigningTemplateId}
+            style={{ ...editInputStyle, width: "auto", padding: "8px 10px" }}
+          >
+            <option value="" disabled>{assigningTemplateId ? "Assigning..." : "Assign a template..."}</option>
+            {templates.map((t) => <option key={t.id} value={t.id}>{t.title || "Untitled"} ({t.exerciseCount} ex.)</option>)}
+          </select>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ---------- Client detail ----------
-function ClientDetail({ client, program, programLoading, templates, onAssignTemplate, assigningTemplateId, dailySummaries, activityLoading, messages, photos, onEditField, onEditAlternatives, onRemove, onAdd, onEditMeta, onCreateProgram, creatingProgram, onSendMessage }) {
+function ClientDetail({ client, program, programLoading, clientPrograms, onSelectProgram, onDeleteProgram, templates, onAssignTemplate, assigningTemplateId, dailySummaries, activityLoading, messages, photos, onEditField, onEditAlternatives, onRemove, onAdd, onEditMeta, onCreateProgram, creatingProgram, onSendMessage }) {
   const [tab, setTab] = useState("program");
   const tabs = [
     { id: "program", label: "Program" },
@@ -303,9 +345,22 @@ function ClientDetail({ client, program, programLoading, templates, onAssignTemp
 
       <div style={{ maxWidth: 640 }}>
         {tab === "program" && (
-          programLoading
-            ? <div style={{ fontSize: 13, color: C.textSecondary }}>Loading...</div>
-            : <ProgramEditor program={program} templates={templates} onAssignTemplate={onAssignTemplate} assigningTemplateId={assigningTemplateId} onEditField={onEditField} onEditAlternatives={onEditAlternatives} onRemove={onRemove} onAdd={onAdd} onEditMeta={onEditMeta} onCreate={onCreateProgram} creating={creatingProgram} />
+          <>
+            <ProgramPicker
+              clientPrograms={clientPrograms}
+              activeProgramId={program?.id}
+              onSelectProgram={onSelectProgram}
+              onCreateProgram={onCreateProgram}
+              creatingProgram={creatingProgram}
+              templates={templates}
+              onAssignTemplate={onAssignTemplate}
+              assigningTemplateId={assigningTemplateId}
+              onDeleteProgram={onDeleteProgram}
+            />
+            {programLoading
+              ? <div style={{ fontSize: 13, color: C.textSecondary }}>Loading...</div>
+              : <ProgramEditor program={program} onEditField={onEditField} onEditAlternatives={onEditAlternatives} onRemove={onRemove} onAdd={onAdd} onEditMeta={onEditMeta} />}
+          </>
         )}
         {tab === "activity" && <ActivityLog dailySummaries={dailySummaries} loading={activityLoading} />}
         {tab === "messages" && <MessagesThread messages={messages} onSend={onSendMessage} />}
@@ -446,6 +501,7 @@ export default function CoachDashboard() {
   const [program, setProgram] = useState(null);
   const [programLoading, setProgramLoading] = useState(false);
   const [creatingProgram, setCreatingProgram] = useState(false);
+  const [clientPrograms, setClientPrograms] = useState([]);
 
   const [dailySummaries, setDailySummaries] = useState([]);
   const [activityLoading, setActivityLoading] = useState(false);
@@ -523,14 +579,19 @@ export default function CoachDashboard() {
   const loadClientDetail = useCallback(async (clientId) => {
     setProgramLoading(true);
     setActivityLoading(true);
-    const [prog, loggedSets, moods, thread, photoList] = await Promise.all([
-      fetchProgramWithExercises(clientId),
+    const [progs, loggedSets, moods, thread, photoList] = await Promise.all([
+      fetchProgramsForClient(clientId),
       fetchRecentLoggedSets(clientId, sinceDate),
       fetchMoodCheckins(clientId, sinceDate),
       fetchThread(clientId),
       fetchProgressPhotos(clientId),
     ]);
-    setProgram(prog);
+    setClientPrograms(progs);
+    if (progs.length > 0) {
+      setProgram(await fetchProgramById(progs[0].id));
+    } else {
+      setProgram(null);
+    }
     setProgramLoading(false);
 
     const byDate = new Map();
@@ -574,8 +635,7 @@ export default function CoachDashboard() {
     }
   }
 
-  function editAlternatives(exId, text) {
-    const list = text.split(",").map((s) => s.trim()).filter(Boolean);
+  function editAlternatives(exId, list) {
     editField(exId, "alternatives", list);
   }
 
@@ -613,6 +673,7 @@ export default function CoachDashboard() {
         title: "New program",
         durationMin: 45,
       });
+      setClientPrograms((prev) => [{ ...created, exerciseCount: 0 }, ...prev]);
       setProgram(created);
     } finally {
       setCreatingProgram(false);
@@ -623,9 +684,40 @@ export default function CoachDashboard() {
     setAssigningTemplateId(templateId);
     try {
       const assigned = await assignTemplateToClient(templateId, selectedId);
+      setClientPrograms((prev) => [{ ...assigned, exerciseCount: assigned.exercises.length }, ...prev]);
       setProgram(assigned);
     } finally {
       setAssigningTemplateId(null);
+    }
+  }
+
+  async function selectProgram(id) {
+    setProgramLoading(true);
+    try {
+      setProgram(await fetchProgramById(id));
+    } finally {
+      setProgramLoading(false);
+    }
+  }
+
+  async function handleDeleteClientProgram(id) {
+    if (!window.confirm("Delete this program? This can't be undone.")) return;
+    try {
+      await deleteProgram(id);
+    } catch (e) {
+      window.alert(e.message || "Failed to delete program.");
+      return;
+    }
+    const remaining = clientPrograms.filter((p) => p.id !== id);
+    setClientPrograms(remaining);
+    if (program?.id === id) {
+      if (remaining.length > 0) {
+        setProgramLoading(true);
+        setProgram(await fetchProgramById(remaining[0].id));
+        setProgramLoading(false);
+      } else {
+        setProgram(null);
+      }
     }
   }
 
@@ -671,8 +763,7 @@ export default function CoachDashboard() {
     }
   }
 
-  function editTemplateAlternatives(exId, text) {
-    const list = text.split(",").map((s) => s.trim()).filter(Boolean);
+  function editTemplateAlternatives(exId, list) {
     editTemplateField(exId, "alternatives", list);
   }
 
@@ -751,6 +842,9 @@ export default function CoachDashboard() {
                 client={selected}
                 program={program}
                 programLoading={programLoading}
+                clientPrograms={clientPrograms}
+                onSelectProgram={selectProgram}
+                onDeleteProgram={handleDeleteClientProgram}
                 templates={templates}
                 onAssignTemplate={handleAssignTemplate}
                 assigningTemplateId={assigningTemplateId}

@@ -46,9 +46,34 @@ export async function updateProgramMeta(programId, patch) {
   return data;
 }
 
+// Deletes exercises first rather than relying on an assumed cascade setting
+// on the exercises -> programs foreign key. If a client already logged real
+// sets against one of those exercises, that delete hits logged_sets'
+// foreign key and fails — surfaced here as a clear message instead of a raw
+// Postgres error.
 export async function deleteProgram(programId) {
+  const { error: exError } = await supabase.from("exercises").delete().eq("program_id", programId);
+  if (exError) {
+    if (exError.code === "23503") {
+      throw new Error("This program has logged workout history attached to it and can't be deleted.");
+    }
+    throw exError;
+  }
   const { error } = await supabase.from("programs").delete().eq("id", programId);
   if (error) throw error;
+}
+
+// All of a client's programs (newest first), each with its exercise count —
+// a client can have more than one over time; the most recent is what the
+// athlete app shows them.
+export async function fetchProgramsForClient(clientId) {
+  const { data, error } = await supabase
+    .from("programs")
+    .select("*, exercises(count)")
+    .eq("client_id", clientId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data.map((p) => ({ ...p, exerciseCount: p.exercises?.[0]?.count ?? 0 }));
 }
 
 export async function addExercise(programId, sortOrder) {
