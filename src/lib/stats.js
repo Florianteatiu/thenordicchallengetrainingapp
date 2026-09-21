@@ -1,73 +1,56 @@
-import { startOfWeek, toDateStr } from "./dateUtils";
+import { startOfWeek, toDateStr, dateStrOf, todayStr } from "./dateUtils";
 
-export function buildHeatmapCells(sessions, days = 28) {
-  const byDate = new Map();
-  sessions.forEach((s) => {
-    const { totalSets, doneSets } = computeTodayProgress({ all: s.set_logs || [] });
-    byDate.set(s.session_date, totalSets > 0 ? Math.min(3, Math.round((doneSets / totalSets) * 3)) : 0);
-  });
-  const cells = [];
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() - (days - 1));
-  for (let i = 0; i < days; i++) {
-    const key = toDateStr(d);
-    cells.push({ date: key, intensity: byDate.get(key) || 0 });
-    d.setDate(d.getDate() + 1);
-  }
-  return cells;
-}
+// moodCheckins: [{ logged_at, ... }]. A day counts as "trained" if it has at
+// least one check-in — that's the only per-day completion signal this schema
+// has (there's no workout_sessions table).
 
-// sessions: array of workout_sessions rows, each with a nested set_logs array
-// (as returned by fetchRecentSessions).
-
-export function computeStreak(sessions) {
-  const completedDates = new Set(sessions.filter((s) => s.completed).map((s) => s.session_date));
+export function computeStreak(moodCheckins) {
+  const trainedDates = new Set(moodCheckins.map((m) => dateStrOf(m.logged_at)));
   let streak = 0;
   const d = new Date();
   d.setHours(0, 0, 0, 0);
-  if (!completedDates.has(toDateStr(d))) {
+  if (!trainedDates.has(toDateStr(d))) {
     d.setDate(d.getDate() - 1);
   }
-  while (completedDates.has(toDateStr(d))) {
+  while (trainedDates.has(toDateStr(d))) {
     streak++;
     d.setDate(d.getDate() - 1);
   }
   return streak;
 }
 
-export function computeWeeklyDone(sessions) {
+export function computeWeeklyDone(moodCheckins) {
   const start = startOfWeek(new Date());
-  return sessions.filter((s) => s.completed && new Date(`${s.session_date}T00:00:00`) >= start).length;
+  const trainedDates = new Set();
+  moodCheckins.forEach((m) => {
+    if (new Date(m.logged_at) >= start) trainedDates.add(dateStrOf(m.logged_at));
+  });
+  return trainedDates.size;
 }
 
-export function computeWeekVolume(sessions) {
+// loggedSets: [{ exercise_id, weight_kg, reps, logged_at }]
+
+export function computeWeekVolume(loggedSets) {
   const start = startOfWeek(new Date());
   let vol = 0;
-  sessions.forEach((s) => {
-    if (new Date(`${s.session_date}T00:00:00`) < start) return;
-    (s.set_logs || []).forEach((sl) => {
-      if (sl.done) vol += (Number(sl.weight) || 0) * (Number(sl.reps) || 0);
-    });
+  loggedSets.forEach((s) => {
+    if (new Date(s.logged_at) < start) return;
+    vol += (Number(s.weight_kg) || 0) * (Number(s.reps) || 0);
   });
   return Math.round(vol);
 }
 
-export function computeWeekPRCount(sessions) {
+export function computeWeekPRCount(loggedSets) {
   const start = startOfWeek(new Date());
   const priorBest = new Map();
   const thisWeekSets = [];
-  sessions.forEach((s) => {
-    const isThisWeek = new Date(`${s.session_date}T00:00:00`) >= start;
-    (s.set_logs || []).forEach((sl) => {
-      if (!sl.done) return;
-      const w = Number(sl.weight) || 0;
-      if (isThisWeek) {
-        thisWeekSets.push({ exerciseId: sl.exercise_id, weight: w });
-      } else {
-        priorBest.set(sl.exercise_id, Math.max(priorBest.get(sl.exercise_id) || 0, w));
-      }
-    });
+  loggedSets.forEach((s) => {
+    const w = Number(s.weight_kg) || 0;
+    if (new Date(s.logged_at) >= start) {
+      thisWeekSets.push({ exerciseId: s.exercise_id, weight: w });
+    } else {
+      priorBest.set(s.exercise_id, Math.max(priorBest.get(s.exercise_id) || 0, w));
+    }
   });
   const prExercises = new Set();
   thisWeekSets.forEach(({ exerciseId, weight }) => {
@@ -79,36 +62,53 @@ export function computeWeekPRCount(sessions) {
 
 // Best previously-logged weight per exercise, excluding today, used to flag
 // a live "New PR" badge while logging today's sets.
-export function computePreviousBestByExercise(sessions) {
-  const today = toDateStr(new Date());
+export function computePreviousBestByExercise(loggedSets) {
+  const today = todayStr();
   const best = new Map();
-  sessions.forEach((s) => {
-    if (s.session_date === today) return;
-    (s.set_logs || []).forEach((sl) => {
-      if (!sl.done) return;
-      const w = Number(sl.weight) || 0;
-      best.set(sl.exercise_id, Math.max(best.get(sl.exercise_id) || 0, w));
-    });
+  loggedSets.forEach((s) => {
+    if (dateStrOf(s.logged_at) === today) return;
+    const w = Number(s.weight_kg) || 0;
+    best.set(s.exercise_id, Math.max(best.get(s.exercise_id) || 0, w));
   });
   return best;
 }
 
-export function computeTodayProgress(setLogsByExercise) {
-  let totalSets = 0;
-  let doneSets = 0;
-  Object.values(setLogsByExercise).forEach((sets) => {
-    totalSets += sets.length;
-    doneSets += sets.filter((s) => s.done).length;
-  });
-  return { totalSets, doneSets };
+export function computeTodayProgress(exercises, todayLoggedSets) {
+  const totalSets = exercises.reduce((sum, ex) => sum + ex.target_sets, 0);
+  return { totalSets, doneSets: todayLoggedSets.length };
 }
 
-export function computeTodayVolume(setLogsByExercise) {
-  let vol = 0;
-  Object.values(setLogsByExercise).forEach((sets) => {
-    sets.forEach((s) => {
-      if (s.done) vol += (Number(s.weight) || 0) * (Number(s.reps) || 0);
-    });
+export function computeTodayVolume(todayLoggedSets) {
+  return Math.round(todayLoggedSets.reduce((sum, s) => sum + (Number(s.weight_kg) || 0) * (Number(s.reps) || 0), 0));
+}
+
+// A day's "intensity" (0-3) for the calendar heatmap: a mood check-in means
+// the workout was completed (3); otherwise it scales with how many sets got
+// logged that day.
+export function buildHeatmapCells(loggedSets, moodCheckins, days = 28) {
+  const trainedDates = new Set(moodCheckins.map((m) => dateStrOf(m.logged_at)));
+  const setCountByDate = new Map();
+  loggedSets.forEach((s) => {
+    const date = dateStrOf(s.logged_at);
+    setCountByDate.set(date, (setCountByDate.get(date) || 0) + 1);
   });
-  return Math.round(vol);
+
+  function intensityFor(date) {
+    if (trainedDates.has(date)) return 3;
+    const count = setCountByDate.get(date) || 0;
+    if (count >= 4) return 2;
+    if (count >= 1) return 1;
+    return 0;
+  }
+
+  const cells = [];
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - (days - 1));
+  for (let i = 0; i < days; i++) {
+    const key = toDateStr(d);
+    cells.push({ date: key, intensity: intensityFor(key) });
+    d.setDate(d.getDate() + 1);
+  }
+  return cells;
 }

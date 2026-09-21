@@ -12,11 +12,13 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { C, fontStack, ghostBtn, inputStyle, smallDarkBtnStyle, cardStyle } from "../theme";
 import logo from "../assets/logo.png";
-import { fetchProfileById, updateProfile, uploadAvatar, touchLastActive, initialsFor } from "../lib/api/profiles";
-import { fetchProgramWithExercises, updateExercise } from "../lib/api/programs";
+import { initialsFor } from "../lib/utils";
+import { uploadAvatar, updateClient } from "../lib/api/clients";
+import { fetchCoachById } from "../lib/api/coaches";
+import { fetchProgramWithExercises } from "../lib/api/programs";
 import {
-  getOrCreateTodaySession, ensureSetLogsForExercises, updateSetLog, addExtraSet,
-  updateSessionMood, setSessionCompleted, awardXPOnce, fetchRecentSessions, fetchExerciseHistory,
+  logSet, updateLoggedSet, deleteLoggedSet, fetchRecentLoggedSets, fetchExerciseHistory,
+  fetchMoodCheckins, hasCheckinToday, logMoodCheckin,
 } from "../lib/api/workouts";
 import { fetchThread, sendMessage, subscribeToThread } from "../lib/api/messages";
 import { fetchProgressPhotos, uploadProgressPhoto } from "../lib/api/photos";
@@ -24,7 +26,9 @@ import {
   computeStreak, computeWeeklyDone, computeWeekVolume, computeWeekPRCount,
   computePreviousBestByExercise, computeTodayProgress, buildHeatmapCells,
 } from "../lib/stats";
-import { todayStr } from "../lib/dateUtils";
+import { todayStr, dateStrOf } from "../lib/dateUtils";
+
+const WEEKLY_TARGET = 4;
 
 const quotes = [
   "Tomorrow is the best excuse ever invented. Today is more fun.",
@@ -274,19 +278,22 @@ function PhotoModal({ photo, onClose }) {
 }
 
 // ---------- Exercise card ----------
-function ExerciseCard({ exercise, sets, note, prevBest, onSetChange, onToggleDone, onAddSet, onSwap, onNoteChange, onOpenVideo, onOpenHistory, onSharePR }) {
+// Note: swapping exercises is session-only (not persisted) — the real schema
+// gives athletes read-only access to exercises, so there's nowhere to save a
+// swap choice without a coach-side schema/policy change.
+function ExerciseCard({ exercise, sets, swappedTo, prevBest, onSetChange, onToggleDone, onAddSet, onSwap, onOpenVideo, onOpenHistory, onSharePR }) {
   const [swapOpen, setSwapOpen] = useState(false);
   const [expanded, setExpanded] = useState(true);
-  const displayName = exercise.swapped_to || exercise.name;
+  const displayName = swappedTo || exercise.name;
 
   return (
     <div style={{ background: C.paper, borderLeft: `3px solid ${C.signal}`, borderRadius: 4, marginBottom: 14, boxShadow: "0 1px 2px rgba(10,10,10,0.06)" }}>
       <div style={{ padding: "14px 16px 10px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div style={{ flex: 1 }}>
-            {exercise.swapped_to && <div style={{ fontSize: 11, color: "#A6A4A0", marginBottom: 2, textDecoration: "line-through" }}>{exercise.name}</div>}
+            {swappedTo && <div style={{ fontSize: 11, color: "#A6A4A0", marginBottom: 2, textDecoration: "line-through" }}>{exercise.name}</div>}
             <div style={{ fontSize: 16.5, fontWeight: 800, color: C.textPrimary, letterSpacing: -0.2 }}>{displayName}</div>
-            <div style={{ fontSize: 12.5, color: C.textSecondary, marginTop: 3 }}>{exercise.target_sets} sets · {exercise.target_reps} reps · target {exercise.target_weight} kg</div>
+            <div style={{ fontSize: 12.5, color: C.textSecondary, marginTop: 3 }}>{exercise.target_sets} sets · {exercise.target_reps} reps · target {exercise.target_weight_kg} kg</div>
           </div>
           <button onClick={() => setExpanded((e) => !e)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textSecondary, padding: 4 }}>
             {expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
@@ -304,7 +311,7 @@ function ExerciseCard({ exercise, sets, note, prevBest, onSetChange, onToggleDon
             {(exercise.alternatives || []).map((alt) => (
               <button key={alt} onClick={() => { onSwap(exercise.id, alt); setSwapOpen(false); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", background: "#fff", border: "none", borderBottom: `1px solid ${C.line}`, fontSize: 13.5, color: C.textPrimary, cursor: "pointer" }}>{alt}</button>
             ))}
-            {exercise.swapped_to && (
+            {swappedTo && (
               <button onClick={() => { onSwap(exercise.id, null); setSwapOpen(false); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", background: C.paperMuted, border: "none", fontSize: 13.5, color: C.textSecondary, cursor: "pointer" }}>Revert to {exercise.name}</button>
             )}
           </div>
@@ -322,9 +329,9 @@ function ExerciseCard({ exercise, sets, note, prevBest, onSetChange, onToggleDon
           {sets.map((set, i) => {
             const isPR = set.done && prevBest && Number(set.weight) > prevBest;
             return (
-              <div key={set.id} style={{ marginBottom: 8 }}>
+              <div key={i} style={{ marginBottom: 8 }}>
                 <div style={{ display: "grid", gridTemplateColumns: "28px 1fr 1fr 40px", gap: 8, alignItems: "center" }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: C.textPrimary }}>{set.set_number}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.textPrimary }}>{set.setNumber}</div>
                   <input type="number" value={set.weight ?? ""} onChange={(e) => onSetChange(exercise.id, i, "weight", e.target.value)} style={inputStyle} />
                   <input type="number" placeholder={exercise.target_reps} value={set.reps ?? ""} onChange={(e) => onSetChange(exercise.id, i, "reps", e.target.value)} style={inputStyle} />
                   <button onClick={() => onToggleDone(exercise.id, i)} aria-label="Mark set complete" style={{ width: 32, height: 32, borderRadius: 6, border: `1.5px solid ${set.done ? C.success : C.line}`, background: set.done ? C.success : "#fff", color: set.done ? "#fff" : "#A6A4A0", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
@@ -344,8 +351,6 @@ function ExerciseCard({ exercise, sets, note, prevBest, onSetChange, onToggleDon
           })}
 
           <button onClick={() => onAddSet(exercise.id)} style={{ ...ghostBtn, marginTop: 2 }}><Plus size={13} /> Add set</button>
-
-          <textarea placeholder="Notes for your trainer — how did this feel?" value={note} onChange={(e) => onNoteChange(exercise.id, e.target.value)} style={{ width: "100%", marginTop: 12, minHeight: 56, resize: "vertical", border: `1px solid ${C.line}`, borderRadius: 6, padding: "8px 10px", fontSize: 13, fontFamily: fontStack, boxSizing: "border-box" }} />
         </div>
       )}
     </div>
@@ -594,8 +599,8 @@ function HomeTab({ clientName, clientPhoto, onChangePhoto, program, todayProgres
 }
 
 // ---------- Workout tab ----------
-function WorkoutTab({ program, setLogsByExercise, notesByExercise, prevBestByExercise, actions, onOpenVideo, onOpenHistory, onSharePR, moodLogged, onLogMood }) {
-  const { totalSets, doneSets } = computeTodayProgress(setLogsByExercise);
+function WorkoutTab({ program, setsByExercise, swapsByExercise, prevBestByExercise, actions, onOpenVideo, onOpenHistory, onSharePR, moodLogged, onLogMood }) {
+  const { totalSets, doneSets } = computeTodayProgress(program?.exercises || [], Object.values(setsByExercise).flat().filter((s) => s.done));
   const allDone = totalSets > 0 && doneSets === totalSets;
 
   if (!program) {
@@ -642,14 +647,13 @@ function WorkoutTab({ program, setLogsByExercise, notesByExercise, prevBestByExe
           <ExerciseCard
             key={ex.id}
             exercise={ex}
-            sets={setLogsByExercise[ex.id] || []}
-            note={notesByExercise[ex.id] || ""}
+            sets={setsByExercise[ex.id] || []}
+            swappedTo={swapsByExercise[ex.id] || null}
             prevBest={prevBestByExercise.get(ex.id)}
             onSetChange={actions.onSetChange}
             onToggleDone={actions.onToggleDone}
             onAddSet={actions.onAddSet}
             onSwap={actions.onSwap}
-            onNoteChange={actions.onNoteChange}
             onOpenVideo={onOpenVideo}
             onOpenHistory={onOpenHistory}
             onSharePR={onSharePR}
@@ -793,13 +797,13 @@ function CoachTab({ coach, messages, onSend, onSignOut }) {
       <div style={{ flex: 1, minHeight: 160, maxHeight: 230, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
         {messages.length === 0 && <div style={{ fontSize: 12.5, color: C.textSecondary }}>No messages yet — say hi!</div>}
         {messages.map((m) => (
-          <div key={m.id} style={{ alignSelf: m.sender_id !== coach?.id ? "flex-end" : "flex-start", background: m.sender_id !== coach?.id ? C.ink : C.paperMuted, color: m.sender_id !== coach?.id ? "#fff" : C.textPrimary, padding: "8px 12px", borderRadius: 14, maxWidth: "80%", fontSize: 13.5 }}>
+          <div key={m.id} style={{ alignSelf: m.sender === "client" ? "flex-end" : "flex-start", background: m.sender === "client" ? C.ink : C.paperMuted, color: m.sender === "client" ? "#fff" : C.textPrimary, padding: "8px 12px", borderRadius: 14, maxWidth: "80%", fontSize: 13.5 }}>
             {m.attachment_url && (
               m.attachment_type === "video"
-                ? <video src={m.attachment_url} controls style={{ width: "100%", borderRadius: 8, marginBottom: m.body ? 6 : 0 }} />
-                : <img src={m.attachment_url} alt="attachment" style={{ width: "100%", borderRadius: 8, marginBottom: m.body ? 6 : 0 }} />
+                ? <video src={m.attachment_url} controls style={{ width: "100%", borderRadius: 8, marginBottom: m.text ? 6 : 0 }} />
+                : <img src={m.attachment_url} alt="attachment" style={{ width: "100%", borderRadius: 8, marginBottom: m.text ? 6 : 0 }} />
             )}
-            {m.body}
+            {m.text}
           </div>
         ))}
         <div ref={endRef} />
@@ -826,6 +830,21 @@ function CoachTab({ coach, messages, onSend, onSignOut }) {
   );
 }
 
+function slotsFromLoggedSets(exercise, loggedSetsForExercise) {
+  const byNumber = new Map(loggedSetsForExercise.map((s) => [s.set_number, s]));
+  const count = Math.max(exercise.target_sets, loggedSetsForExercise.length);
+  const slots = [];
+  for (let i = 1; i <= count; i++) {
+    const row = byNumber.get(i);
+    slots.push(
+      row
+        ? { setNumber: i, id: row.id, weight: row.weight_kg, reps: row.reps, done: true }
+        : { setNumber: i, id: null, weight: exercise.target_weight_kg, reps: "", done: false }
+    );
+  }
+  return slots;
+}
+
 // ---------- Root app ----------
 export default function PTApp() {
   const { profile, signOut, refreshProfile } = useAuth();
@@ -833,9 +852,10 @@ export default function PTApp() {
   const [program, setProgram] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const [session, setSession] = useState(null);
-  const [setLogsByExercise, setSetLogsByExercise] = useState({});
-  const [recentSessions, setRecentSessions] = useState([]);
+  const [recentLoggedSets, setRecentLoggedSets] = useState([]);
+  const [recentMoodCheckins, setRecentMoodCheckins] = useState([]);
+  const [setsByExercise, setSetsByExercise] = useState({});
+  const [swapsByExercise, setSwapsByExercise] = useState({});
 
   const [tab, setTab] = useState("home");
   const [videoExercise, setVideoExercise] = useState(null);
@@ -845,6 +865,7 @@ export default function PTApp() {
   const [openPhoto, setOpenPhoto] = useState(null);
   const [photos, setPhotos] = useState([]);
   const [celebrate, setCelebrate] = useState(false);
+  const [joinedChallenge, setJoinedChallenge] = useState(false);
   const [messages, setMessages] = useState([]);
   const [timer, setTimer] = useState({ active: false, running: false, seconds: 0 });
   const intervalRef = useRef(null);
@@ -853,38 +874,37 @@ export default function PTApp() {
   const sinceDate = useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() - 60);
-    return d.toISOString().slice(0, 10);
+    return d.toISOString();
   }, []);
 
   useEffect(() => {
     let active = true;
     async function load() {
       setLoading(true);
-      touchLastActive(profile.id);
-      const [coachProfile, prog, recent, photoList] = await Promise.all([
-        fetchProfileById(profile.coach_id),
+      const [coachRow, prog, loggedSets, moods, photoList, thread] = await Promise.all([
+        fetchCoachById(profile.coach_id),
         fetchProgramWithExercises(profile.id),
-        fetchRecentSessions(profile.id, sinceDate),
+        fetchRecentLoggedSets(profile.id, sinceDate),
+        fetchMoodCheckins(profile.id, sinceDate),
         fetchProgressPhotos(profile.id),
+        fetchThread(profile.id),
       ]);
       if (!active) return;
-      setCoach(coachProfile);
+      setCoach(coachRow);
       setProgram(prog);
-      setRecentSessions(recent);
+      setRecentLoggedSets(loggedSets);
+      setRecentMoodCheckins(moods);
       setPhotos(photoList);
+      setMessages(thread);
 
       if (prog) {
-        const todaySession = await getOrCreateTodaySession(profile.id, prog.id);
-        const setLogs = await ensureSetLogsForExercises(todaySession.id, prog.exercises);
-        if (!active) return;
-        setSession(todaySession);
-        setSetLogsByExercise(groupByExercise(setLogs));
-      }
-
-      if (coachProfile) {
-        const thread = await fetchThread(profile.id, coachProfile.id);
-        if (!active) return;
-        setMessages(thread);
+        const today = todayStr();
+        const todayLoggedSets = loggedSets.filter((s) => dateStrOf(s.logged_at) === today);
+        const grouped = {};
+        prog.exercises.forEach((ex) => {
+          grouped[ex.id] = slotsFromLoggedSets(ex, todayLoggedSets.filter((s) => s.exercise_id === ex.id));
+        });
+        setSetsByExercise(grouped);
       }
       setLoading(false);
     }
@@ -894,51 +914,18 @@ export default function PTApp() {
   }, [profile.id]);
 
   useEffect(() => {
-    if (!coach) return;
-    return subscribeToThread(profile.id, coach.id, (m) => setMessages((prev) => [...prev, m]));
-  }, [profile.id, coach]);
+    return subscribeToThread(profile.id, (m) => setMessages((prev) => [...prev, m]));
+  }, [profile.id]);
 
-  function groupByExercise(rows) {
-    const grouped = {};
-    rows.forEach((r) => {
-      if (!grouped[r.exercise_id]) grouped[r.exercise_id] = [];
-      grouped[r.exercise_id].push(r);
-    });
-    Object.values(grouped).forEach((arr) => arr.sort((a, b) => a.set_number - b.set_number));
-    return grouped;
-  }
-
-  const notesByExercise = useMemo(() => {
-    const notes = {};
-    Object.entries(setLogsByExercise).forEach(([exId, sets]) => {
-      notes[exId] = sets.find((s) => s.set_number === 1)?.note || "";
-    });
-    return notes;
-  }, [setLogsByExercise]);
-
-  // Live stats include today's in-progress session merged with the fetched
-  // history, so the dashboard reflects sets logged in this sitting.
-  const sessionsForStats = useMemo(() => {
-    const today = todayStr();
-    const todaySetLogs = Object.values(setLogsByExercise).flat();
-    const { totalSets, doneSets } = computeTodayProgress(setLogsByExercise);
-    const syntheticToday = {
-      session_date: today,
-      completed: totalSets > 0 && doneSets === totalSets,
-      set_logs: todaySetLogs,
-    };
-    const withoutToday = recentSessions.filter((s) => s.session_date !== today);
-    return [syntheticToday, ...withoutToday];
-  }, [recentSessions, setLogsByExercise]);
-
-  const prevBestByExercise = useMemo(() => computePreviousBestByExercise(recentSessions), [recentSessions]);
-  const todayProgress = computeTodayProgress(setLogsByExercise);
-  const streak = computeStreak(sessionsForStats);
-  const weeklyDone = computeWeeklyDone(sessionsForStats);
-  const weekVolume = computeWeekVolume(sessionsForStats);
-  const weekPRs = computeWeekPRCount(sessionsForStats);
-  const heatmapCells = useMemo(() => buildHeatmapCells(sessionsForStats), [sessionsForStats]);
-  const allDoneWorkoutsCount = useMemo(() => recentSessions.filter((s) => s.completed).length, [recentSessions]);
+  const prevBestByExercise = useMemo(() => computePreviousBestByExercise(recentLoggedSets), [recentLoggedSets]);
+  const todayLoggedSetsFlat = useMemo(() => Object.values(setsByExercise).flat().filter((s) => s.done), [setsByExercise]);
+  const todayProgress = computeTodayProgress(program?.exercises || [], todayLoggedSetsFlat);
+  const streak = profile.streak || 0;
+  const weeklyDone = computeWeeklyDone(recentMoodCheckins);
+  const weekVolume = computeWeekVolume(recentLoggedSets);
+  const weekPRs = computeWeekPRCount(recentLoggedSets);
+  const heatmapCells = useMemo(() => buildHeatmapCells(recentLoggedSets, recentMoodCheckins), [recentLoggedSets, recentMoodCheckins]);
+  const allDoneWorkoutsCount = useMemo(() => new Set(recentMoodCheckins.map((m) => dateStrOf(m.logged_at))).size, [recentMoodCheckins]);
 
   const badges = useMemo(() => {
     const list = [];
@@ -949,7 +936,7 @@ export default function PTApp() {
   }, [streak, weekPRs, allDoneWorkoutsCount]);
 
   const xpEarnedToday = todayProgress.doneSets * 8 + (todayProgress.totalSets > 0 && todayProgress.doneSets === todayProgress.totalSets ? 40 : 0);
-  const moodLoggedToday = !!session?.mood;
+  const moodLoggedToday = hasCheckinToday(recentMoodCheckins);
 
   useEffect(() => {
     if (timer.active && timer.running) {
@@ -968,25 +955,15 @@ export default function PTApp() {
     return () => clearInterval(intervalRef.current);
   }, [timer.active, timer.running]);
 
-  // Detect "all sets done" transitions: celebrate, persist completion, award XP once.
   useEffect(() => {
-    if (!session) return;
     const allDone = todayProgress.totalSets > 0 && todayProgress.doneSets === todayProgress.totalSets;
     if (allDone && !prevAllDoneRef.current) {
       setCelebrate(true);
       const t = setTimeout(() => setCelebrate(false), 2000);
       prevAllDoneRef.current = true;
-      if (!session.completed) setSessionCompleted(session.id, true).then((s) => setSession(s));
-      awardXPOnce(session, profile.id, xpEarnedToday).then((updated) => {
-        if (updated) refreshProfile();
-      });
       return () => clearTimeout(t);
     }
-    if (!allDone) {
-      prevAllDoneRef.current = false;
-      if (session.completed) setSessionCompleted(session.id, false).then((s) => setSession(s));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!allDone) prevAllDoneRef.current = false;
   }, [todayProgress.doneSets, todayProgress.totalSets]);
 
   function startTimer(seconds) {
@@ -994,8 +971,8 @@ export default function PTApp() {
     setTimer({ active: true, running: true, seconds });
   }
 
-  function patchSetLocal(exId, idx, patch) {
-    setSetLogsByExercise((prev) => ({
+  function patchSlotLocal(exId, idx, patch) {
+    setSetsByExercise((prev) => ({
       ...prev,
       [exId]: prev[exId].map((s, i) => (i === idx ? { ...s, ...patch } : s)),
     }));
@@ -1003,41 +980,46 @@ export default function PTApp() {
 
   const actions = {
     onSetChange: (exId, idx, field, value) => {
-      patchSetLocal(exId, idx, { [field]: value });
-      const row = setLogsByExercise[exId][idx];
-      updateSetLog(row.id, { [field]: value === "" ? null : value }).catch((e) => console.error("Failed to save set", e));
+      patchSlotLocal(exId, idx, { [field]: value });
+      const slot = setsByExercise[exId][idx];
+      if (!slot.id) return; // not logged yet — local edit only, persisted when checked
+      const dbField = field === "weight" ? "weight_kg" : field;
+      const dbValue = value === "" ? null : value;
+      updateLoggedSet(slot.id, { [dbField]: dbValue }).catch((e) => console.error("Failed to save set", e));
+      setRecentLoggedSets((prev) => prev.map((s) => (s.id === slot.id ? { ...s, [dbField]: dbValue } : s)));
     },
-    onToggleDone: (exId, idx) => {
-      const row = setLogsByExercise[exId][idx];
-      const nextDone = !row.done;
-      patchSetLocal(exId, idx, { done: nextDone });
-      updateSetLog(row.id, { done: nextDone }).catch((e) => console.error("Failed to save set", e));
-      if (nextDone) {
-        const ex = program.exercises.find((e) => e.id === exId);
-        startTimer(ex.rest_seconds);
+    onToggleDone: async (exId, idx) => {
+      const slot = setsByExercise[exId][idx];
+      if (!slot.done) {
+        try {
+          const row = await logSet({ clientId: profile.id, exerciseId: exId, setNumber: slot.setNumber, weightKg: slot.weight, reps: slot.reps });
+          patchSlotLocal(exId, idx, { id: row.id, done: true });
+          setRecentLoggedSets((prev) => [row, ...prev]);
+          const ex = program.exercises.find((e) => e.id === exId);
+          startTimer(ex.rest_seconds);
+        } catch (e) {
+          console.error("Failed to log set", e);
+        }
+      } else {
+        try {
+          await deleteLoggedSet(slot.id);
+          patchSlotLocal(exId, idx, { id: null, done: false });
+          setRecentLoggedSets((prev) => prev.filter((s) => s.id !== slot.id));
+        } catch (e) {
+          console.error("Failed to remove set", e);
+        }
       }
     },
-    onAddSet: async (exId) => {
-      const sets = setLogsByExercise[exId];
+    onAddSet: (exId) => {
+      const sets = setsByExercise[exId];
       const last = sets[sets.length - 1];
-      const created = await addExtraSet(session.id, exId, sets.length + 1, last.weight);
-      setSetLogsByExercise((prev) => ({ ...prev, [exId]: [...prev[exId], created] }));
-    },
-    onSwap: async (exId, altName) => {
-      setProgram((prev) => ({ ...prev, exercises: prev.exercises.map((ex) => (ex.id === exId ? { ...ex, swapped_to: altName } : ex)) }));
-      try {
-        await updateExercise(exId, { swapped_to: altName });
-      } catch (e) {
-        console.error("Failed to save swap", e);
-      }
-    },
-    onNoteChange: (exId, text) => {
-      setSetLogsByExercise((prev) => ({
+      setSetsByExercise((prev) => ({
         ...prev,
-        [exId]: prev[exId].map((s) => (s.set_number === 1 ? { ...s, note: text } : s)),
+        [exId]: [...prev[exId], { setNumber: sets.length + 1, id: null, weight: last.weight, reps: "", done: false }],
       }));
-      const firstSet = setLogsByExercise[exId].find((s) => s.set_number === 1);
-      if (firstSet) updateSetLog(firstSet.id, { note: text }).catch((e) => console.error("Failed to save note", e));
+    },
+    onSwap: (exId, altName) => {
+      setSwapsByExercise((prev) => ({ ...prev, [exId]: altName }));
     },
     onPauseTimer: () => setTimer((t) => ({ ...t, running: false })),
     onResumeTimer: () => setTimer((t) => ({ ...t, running: true })),
@@ -1046,35 +1028,37 @@ export default function PTApp() {
   };
 
   async function logMood(option) {
-    const updated = await updateSessionMood(session.id, option.label);
-    setSession(updated);
-    if (coach) {
-      const msg = await sendMessage({ senderId: profile.id, recipientId: coach.id, text: `Effort today: ${option.emoji} ${option.label}` });
-      setMessages((m) => [...m, msg]);
+    try {
+      const created = await logMoodCheckin({ clientId: profile.id, emoji: option.emoji, label: option.label });
+      const updatedMoods = [created, ...recentMoodCheckins];
+      setRecentMoodCheckins(updatedMoods);
+
+      const newStreak = computeStreak(updatedMoods);
+      await updateClient(profile.id, { xp: (profile.xp || 0) + xpEarnedToday, streak: newStreak });
+      await refreshProfile();
+
+      if (coach) {
+        const msg = await sendMessage({ clientId: profile.id, sender: "client", text: `Effort today: ${option.emoji} ${option.label}` });
+        setMessages((m) => [...m, msg]);
+      }
+    } catch (e) {
+      console.error("Failed to log mood", e);
     }
   }
 
   async function handleSendMessage({ text, attachmentFile }) {
-    if (!coach) return;
-    const msg = await sendMessage({ senderId: profile.id, recipientId: coach.id, text, attachmentFile });
+    const msg = await sendMessage({ clientId: profile.id, sender: "client", text, attachmentFile });
     setMessages((m) => [...m, msg]);
   }
 
   async function handleChangeAvatar(file) {
-    const url = await uploadAvatar(profile.id, file);
+    await uploadAvatar(profile.id, file);
     await refreshProfile();
-    return url;
   }
 
   async function handleAddPhoto(file) {
     const photo = await uploadProgressPhoto(profile.id, file);
     setPhotos((prev) => [...prev, photo]);
-  }
-
-  async function handleToggleChallenge() {
-    const next = !profile.joined_challenge;
-    await updateProfile(profile.id, { joined_challenge: next });
-    await refreshProfile();
   }
 
   async function openHistory(exercise) {
@@ -1113,14 +1097,14 @@ export default function PTApp() {
         {tab === "home" && (
           <HomeTab
             clientName={profile.name}
-            clientPhoto={profile.avatar_url}
+            clientPhoto={profile.photo_url}
             onChangePhoto={handleChangeAvatar}
             program={program}
             todayProgress={todayProgress}
             streak={streak}
             weeklyDone={weeklyDone}
-            weeklyTarget={profile.weekly_target}
-            xpBase={profile.xp_base}
+            weeklyTarget={WEEKLY_TARGET}
+            xpBase={profile.xp || 0}
             xpEarnedToday={xpEarnedToday}
             photos={photos}
             onAddPhoto={handleAddPhoto}
@@ -1130,15 +1114,15 @@ export default function PTApp() {
             weekVolume={weekVolume}
             weekPRs={weekPRs}
             badges={badges}
-            joinedChallenge={profile.joined_challenge}
-            onToggleJoined={handleToggleChallenge}
+            joinedChallenge={joinedChallenge}
+            onToggleJoined={() => setJoinedChallenge((j) => !j)}
           />
         )}
         {tab === "workout" && (
           <WorkoutTab
             program={program}
-            setLogsByExercise={setLogsByExercise}
-            notesByExercise={notesByExercise}
+            setsByExercise={setsByExercise}
+            swapsByExercise={swapsByExercise}
             prevBestByExercise={prevBestByExercise}
             actions={actions}
             onOpenVideo={setVideoExercise}

@@ -6,17 +6,15 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { C, fontStack, ghostBtn, cardStyle, editInputStyle } from "../theme";
 import logo from "../assets/logo.png";
-import { fetchClientsForCoach, initialsFor, updateProfile } from "../lib/api/profiles";
+import { initialsFor } from "../lib/utils";
+import { fetchClientsForCoach } from "../lib/api/clients";
 import {
   fetchProgramWithExercises, createProgram, updateProgramMeta, addExercise, updateExercise, deleteExercise,
 } from "../lib/api/programs";
-import { fetchRecentSessions, fetchRecentSessionsForClients } from "../lib/api/workouts";
-import { fetchThread, fetchLatestMessagePerClient, sendMessage, subscribeToThread, markThreadRead } from "../lib/api/messages";
+import { fetchRecentLoggedSets, fetchRecentLoggedSetsForClients, fetchMoodCheckins, fetchMoodCheckinsForClients } from "../lib/api/workouts";
+import { fetchThread, fetchLatestMessagePerClient, sendMessage, subscribeToThread } from "../lib/api/messages";
 import { fetchProgressPhotos } from "../lib/api/photos";
-import { computeStreak, computeTodayProgress } from "../lib/stats";
-import { relativeTimeLabel, relativeDayLabel, todayStr } from "../lib/dateUtils";
-
-const moodEmoji = { Tough: "😅", Good: "🙂", Easy: "😴" };
+import { relativeTimeLabel, relativeDayLabel, dateStrOf, todayStr, dayBounds } from "../lib/dateUtils";
 
 function Avatar({ name, avatarUrl, size = 40 }) {
   if (avatarUrl) {
@@ -100,11 +98,11 @@ function ClientList({ clients, selectedId, onSelect }) {
             padding: "10px 8px", borderRadius: 8, border: "none", cursor: "pointer", marginBottom: 2,
             background: selectedId === c.id ? C.paperMuted : "transparent",
           }}>
-            <Avatar name={c.name} avatarUrl={c.avatar_url} size={34} />
+            <Avatar name={c.name} avatarUrl={c.photo_url} size={34} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: C.textPrimary }}>{c.name}</div>
               <div style={{ fontSize: 11, color: C.textSecondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                Active {relativeTimeLabel(c.last_active_at)}
+                Active {relativeTimeLabel(c.lastActiveAt)}
               </div>
             </div>
             {c.streak > 0 && (
@@ -138,15 +136,15 @@ function ProgramEditor({ program, onEditField, onEditAlternatives, onRemove, onA
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
           <div>
             <label style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 700 }}>Week label</label>
-            <input value={program.week_label} onChange={(e) => onEditMeta("week_label", e.target.value)} style={editInputStyle} />
+            <input value={program.week_label || ""} onChange={(e) => onEditMeta("week_label", e.target.value)} style={editInputStyle} />
           </div>
           <div>
             <label style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 700 }}>Title</label>
-            <input value={program.title} onChange={(e) => onEditMeta("title", e.target.value)} style={editInputStyle} />
+            <input value={program.title || ""} onChange={(e) => onEditMeta("title", e.target.value)} style={editInputStyle} />
           </div>
           <div>
             <label style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 700 }}>Est. minutes</label>
-            <input type="number" value={program.duration_min} onChange={(e) => onEditMeta("duration_min", Number(e.target.value))} style={editInputStyle} />
+            <input type="number" value={program.duration_min || 0} onChange={(e) => onEditMeta("duration_min", Number(e.target.value))} style={editInputStyle} />
           </div>
         </div>
       </div>
@@ -164,22 +162,22 @@ function ProgramEditor({ program, onEditField, onEditAlternatives, onRemove, onA
             </div>
             <div>
               <label style={{ fontSize: 10, color: C.textMuted, fontWeight: 700 }}>Reps</label>
-              <input value={ex.target_reps} onChange={(e) => onEditField(ex.id, "target_reps", e.target.value)} style={editInputStyle} />
+              <input value={ex.target_reps || ""} onChange={(e) => onEditField(ex.id, "target_reps", e.target.value)} style={editInputStyle} />
             </div>
             <div>
               <label style={{ fontSize: 10, color: C.textMuted, fontWeight: 700 }}>Weight (kg)</label>
-              <input type="number" value={ex.target_weight} onChange={(e) => onEditField(ex.id, "target_weight", Number(e.target.value))} style={editInputStyle} />
+              <input type="number" value={ex.target_weight_kg || 0} onChange={(e) => onEditField(ex.id, "target_weight_kg", Number(e.target.value))} style={editInputStyle} />
             </div>
             <div>
               <label style={{ fontSize: 10, color: C.textMuted, fontWeight: 700 }}>Rest (s)</label>
-              <input type="number" value={ex.rest_seconds} onChange={(e) => onEditField(ex.id, "rest_seconds", Number(e.target.value))} style={editInputStyle} />
+              <input type="number" value={ex.rest_seconds || 0} onChange={(e) => onEditField(ex.id, "rest_seconds", Number(e.target.value))} style={editInputStyle} />
             </div>
             <button onClick={() => onRemove(ex.id)} style={{ height: 32, width: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "#F3E9E9", color: "#A6403C", border: "none", borderRadius: 6, cursor: "pointer" }}>
               <Trash2 size={14} />
             </button>
           </div>
           <label style={{ fontSize: 10, color: C.textMuted, fontWeight: 700 }}>Form cue</label>
-          <textarea value={ex.cue} onChange={(e) => onEditField(ex.id, "cue", e.target.value)} style={{ ...editInputStyle, minHeight: 36, resize: "vertical", marginBottom: 8 }} />
+          <textarea value={ex.cue || ""} onChange={(e) => onEditField(ex.id, "cue", e.target.value)} style={{ ...editInputStyle, minHeight: 36, resize: "vertical", marginBottom: 8 }} />
           <label style={{ fontSize: 10, color: C.textMuted, fontWeight: 700 }}>Alternatives (comma separated)</label>
           <input value={(ex.alternatives || []).join(", ")} onChange={(e) => onEditAlternatives(ex.id, e.target.value)} style={editInputStyle} />
         </div>
@@ -193,33 +191,28 @@ function ProgramEditor({ program, onEditField, onEditAlternatives, onRemove, onA
 }
 
 // ---------- Activity log ----------
-function ActivityLog({ sessions, programTitle, loading }) {
+function ActivityLog({ dailySummaries, loading }) {
   if (loading) return <div style={{ fontSize: 13, color: C.textSecondary }}>Loading...</div>;
-  const logged = sessions.filter((s) => (s.set_logs || []).some((sl) => sl.done));
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      {logged.length === 0 && <div style={{ fontSize: 13, color: C.textSecondary }}>No sessions logged yet.</div>}
-      {logged.map((s) => {
-        const { totalSets, doneSets } = computeTodayProgress({ all: s.set_logs || [] });
-        return (
-          <div key={s.id} style={{ ...cardStyle, padding: "12px 14px", display: "flex", gap: 10, alignItems: "flex-start" }}>
-            <Clock size={15} color={C.signalText} style={{ marginTop: 2, flexShrink: 0 }} />
-            <div>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: C.textPrimary }}>{relativeDayLabel(s.session_date)}</div>
-              <div style={{ fontSize: 12.5, color: C.textSecondary, marginTop: 2 }}>
-                {programTitle} — {doneSets}/{totalSets} sets logged
-                {s.mood ? `, effort: ${moodEmoji[s.mood] || ""} ${s.mood}` : ""}
-              </div>
+      {dailySummaries.length === 0 && <div style={{ fontSize: 13, color: C.textSecondary }}>No sessions logged yet.</div>}
+      {dailySummaries.map((day) => (
+        <div key={day.date} style={{ ...cardStyle, padding: "12px 14px", display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <Clock size={15} color={C.signalText} style={{ marginTop: 2, flexShrink: 0 }} />
+          <div>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: C.textPrimary }}>{relativeDayLabel(day.date)}</div>
+            <div style={{ fontSize: 12.5, color: C.textSecondary, marginTop: 2 }}>
+              {day.setCount} sets logged{day.mood ? `, effort: ${day.mood.emoji} ${day.mood.label}` : ""}
             </div>
           </div>
-        );
-      })}
+        </div>
+      ))}
     </div>
   );
 }
 
 // ---------- Messages thread ----------
-function MessagesThread({ messages, onSend, coachId }) {
+function MessagesThread({ messages, onSend }) {
   const [draft, setDraft] = useState("");
   function send() {
     if (!draft.trim()) return;
@@ -232,17 +225,17 @@ function MessagesThread({ messages, onSend, coachId }) {
         {messages.length === 0 && <div style={{ fontSize: 13, color: C.textSecondary }}>No messages yet.</div>}
         {messages.map((m) => (
           <div key={m.id} style={{
-            alignSelf: m.sender_id === coachId ? "flex-end" : "flex-start",
-            background: m.sender_id === coachId ? C.ink : C.paperMuted,
-            color: m.sender_id === coachId ? "#fff" : C.textPrimary,
-            padding: "8px 12px", borderRadius: 14, maxWidth: "70%", fontSize: 13, marginLeft: m.sender_id === coachId ? "auto" : 0,
+            alignSelf: m.sender === "coach" ? "flex-end" : "flex-start",
+            background: m.sender === "coach" ? C.ink : C.paperMuted,
+            color: m.sender === "coach" ? "#fff" : C.textPrimary,
+            padding: "8px 12px", borderRadius: 14, maxWidth: "70%", fontSize: 13, marginLeft: m.sender === "coach" ? "auto" : 0,
           }}>
             {m.attachment_url && (
               m.attachment_type === "video"
-                ? <video src={m.attachment_url} controls style={{ width: "100%", borderRadius: 8, marginBottom: m.body ? 6 : 0 }} />
-                : <img src={m.attachment_url} alt="attachment" style={{ width: "100%", borderRadius: 8, marginBottom: m.body ? 6 : 0 }} />
+                ? <video src={m.attachment_url} controls style={{ width: "100%", borderRadius: 8, marginBottom: m.text ? 6 : 0 }} />
+                : <img src={m.attachment_url} alt="attachment" style={{ width: "100%", borderRadius: 8, marginBottom: m.text ? 6 : 0 }} />
             )}
-            {m.body}
+            {m.text}
           </div>
         ))}
       </div>
@@ -257,7 +250,7 @@ function MessagesThread({ messages, onSend, coachId }) {
 }
 
 // ---------- Client detail ----------
-function ClientDetail({ client, program, programLoading, sessions, sessionsLoading, messages, photos, onEditField, onEditAlternatives, onRemove, onAdd, onEditMeta, onCreateProgram, creatingProgram, onSendMessage, coachId }) {
+function ClientDetail({ client, program, programLoading, dailySummaries, activityLoading, messages, photos, onEditField, onEditAlternatives, onRemove, onAdd, onEditMeta, onCreateProgram, creatingProgram, onSendMessage }) {
   const [tab, setTab] = useState("program");
   const tabs = [
     { id: "program", label: "Program" },
@@ -268,10 +261,10 @@ function ClientDetail({ client, program, programLoading, sessions, sessionsLoadi
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "20px 28px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 6 }}>
-        <Avatar name={client.name} avatarUrl={client.avatar_url} size={46} />
+        <Avatar name={client.name} avatarUrl={client.photo_url} size={46} />
         <div>
           <div style={{ fontSize: 21, fontWeight: 900, color: C.textPrimary }}>{client.name}</div>
-          <div style={{ fontSize: 12.5, color: C.textSecondary }}>Last active {relativeTimeLabel(client.last_active_at)}</div>
+          <div style={{ fontSize: 12.5, color: C.textSecondary }}>Last active {relativeTimeLabel(client.lastActiveAt)}</div>
         </div>
         <div style={{ marginLeft: "auto" }}><StatusPill status={client.todayStatus} /></div>
       </div>
@@ -291,8 +284,8 @@ function ClientDetail({ client, program, programLoading, sessions, sessionsLoadi
             ? <div style={{ fontSize: 13, color: C.textSecondary }}>Loading...</div>
             : <ProgramEditor program={program} onEditField={onEditField} onEditAlternatives={onEditAlternatives} onRemove={onRemove} onAdd={onAdd} onEditMeta={onEditMeta} onCreate={onCreateProgram} creating={creatingProgram} />
         )}
-        {tab === "activity" && <ActivityLog sessions={sessions} programTitle={program?.title || "Workout"} loading={sessionsLoading} />}
-        {tab === "messages" && <MessagesThread messages={messages} onSend={onSendMessage} coachId={coachId} />}
+        {tab === "activity" && <ActivityLog dailySummaries={dailySummaries} loading={activityLoading} />}
+        {tab === "messages" && <MessagesThread messages={messages} onSend={onSendMessage} />}
         {tab === "photos" && (
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {photos.length === 0 && <div style={{ fontSize: 13, color: C.textSecondary }}>No photos submitted yet.</div>}
@@ -320,14 +313,14 @@ function MessagesInbox({ clients, latestByClient, onOpenClient }) {
         {rows.length === 0 && <div style={{ fontSize: 13, color: C.textSecondary }}>No conversations yet.</div>}
         {rows.map(({ client, last }) => (
           <button key={client.id} onClick={() => onOpenClient(client.id)} style={{ ...cardStyle, display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", textAlign: "left", cursor: "pointer", width: "100%" }}>
-            <Avatar name={client.name} avatarUrl={client.avatar_url} size={36} />
+            <Avatar name={client.name} avatarUrl={client.photo_url} size={36} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: C.textPrimary }}>{client.name}</div>
               <div style={{ fontSize: 12, color: C.textSecondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {last.sender_id !== client.id ? "You: " : ""}{last.body || "(attachment)"}
+                {last.sender === "coach" ? "You: " : ""}{last.text || "(attachment)"}
               </div>
             </div>
-            {last.sender_id === client.id && !last.read_at && <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.signal, flexShrink: 0 }} />}
+            {last.sender === "client" && <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.signal, flexShrink: 0 }} />}
             <ChevronRight size={16} color={C.textMuted} />
           </button>
         ))}
@@ -337,8 +330,10 @@ function MessagesInbox({ clients, latestByClient, onOpenClient }) {
 }
 
 // ---------- Challenge tracker ----------
-function ChallengeTracker({ clients, onToggleJoined }) {
-  const joinedCount = clients.filter((c) => c.joined_challenge).length;
+// Note: the existing schema has no column for "joined a challenge" — this is
+// kept as session-only state (resets on reload) rather than adding one.
+function ChallengeTracker({ clients, joinedIds, onToggleJoined }) {
+  const joinedCount = clients.filter((c) => joinedIds.has(c.id)).length;
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "20px 28px" }}>
       <div style={{ fontSize: 21, fontWeight: 900, color: C.textPrimary, marginBottom: 4 }}>This month's challenge</div>
@@ -347,13 +342,13 @@ function ChallengeTracker({ clients, onToggleJoined }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 480 }}>
         {clients.map((c) => (
           <div key={c.id} style={{ ...cardStyle, display: "flex", alignItems: "center", gap: 12, padding: "12px 14px" }}>
-            <Avatar name={c.name} avatarUrl={c.avatar_url} size={34} />
+            <Avatar name={c.name} avatarUrl={c.photo_url} size={34} />
             <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: C.textPrimary }}>{c.name}</div>
-            <button onClick={() => onToggleJoined(c.id, !c.joined_challenge)} style={{
+            <button onClick={() => onToggleJoined(c.id)} style={{
               fontSize: 11.5, fontWeight: 700, padding: "5px 11px", borderRadius: 20, border: "none", cursor: "pointer",
-              background: c.joined_challenge ? C.successSoft : "#EFEEEC", color: c.joined_challenge ? C.success : C.textSecondary,
+              background: joinedIds.has(c.id) ? C.successSoft : "#EFEEEC", color: joinedIds.has(c.id) ? C.success : C.textSecondary,
             }}>
-              {c.joined_challenge ? "Joined ✓" : "Not joined"}
+              {joinedIds.has(c.id) ? "Joined ✓" : "Not joined"}
             </button>
           </div>
         ))}
@@ -371,13 +366,14 @@ export default function CoachDashboard() {
   const [clientsLoading, setClientsLoading] = useState(true);
   const [view, setView] = useState("clients");
   const [selectedId, setSelectedId] = useState(null);
+  const [joinedIds, setJoinedIds] = useState(() => new Set());
 
   const [program, setProgram] = useState(null);
   const [programLoading, setProgramLoading] = useState(false);
   const [creatingProgram, setCreatingProgram] = useState(false);
 
-  const [sessions, setSessions] = useState([]);
-  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [dailySummaries, setDailySummaries] = useState([]);
+  const [activityLoading, setActivityLoading] = useState(false);
 
   const [messages, setMessages] = useState([]);
   const [latestByClient, setLatestByClient] = useState({});
@@ -387,34 +383,36 @@ export default function CoachDashboard() {
   const sinceDate = useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() - 60);
-    return d.toISOString().slice(0, 10);
+    return d.toISOString();
   }, []);
 
   const loadClients = useCallback(async () => {
     setClientsLoading(true);
     const rows = await fetchClientsForCoach(coachId);
     const clientIds = rows.map((c) => c.id);
-    const sessionsByClient = await fetchRecentSessionsForClients(clientIds, sinceDate);
-    const today = todayStr();
+    const { start: todayStart } = dayBounds(todayStr());
+
+    const [todaySets, todayMoods] = await Promise.all([
+      fetchRecentLoggedSetsForClients(clientIds, todayStart),
+      fetchMoodCheckinsForClients(clientIds, todayStart),
+    ]);
+
     const enriched = rows.map((c) => {
-      const clientSessions = sessionsByClient[c.id] || [];
-      const streak = computeStreak(clientSessions);
-      const todaySession = clientSessions.find((s) => s.session_date === today);
+      const setsToday = todaySets[c.id] || [];
+      const moodsToday = todayMoods[c.id] || [];
       let todayStatus = "Not started";
-      if (todaySession) {
-        const { totalSets, doneSets } = computeTodayProgress({ all: todaySession.set_logs || [] });
-        if (totalSets > 0 && doneSets === totalSets) todayStatus = "Completed";
-        else if (doneSets > 0) todayStatus = "In progress";
-      }
-      return { ...c, streak, todayStatus };
+      if (moodsToday.length > 0) todayStatus = "Completed";
+      else if (setsToday.length > 0) todayStatus = "In progress";
+      const lastActiveAt = [...setsToday, ...moodsToday].map((r) => r.logged_at).sort().pop() || c.created_at;
+      return { ...c, todayStatus, lastActiveAt };
     });
     setClients(enriched);
     setClientsLoading(false);
     if (!selectedId && enriched.length > 0) setSelectedId(enriched[0].id);
 
-    const latest = await fetchLatestMessagePerClient(coachId, clientIds);
+    const latest = await fetchLatestMessagePerClient(clientIds);
     setLatestByClient(latest);
-  }, [coachId, sinceDate, selectedId]);
+  }, [coachId, selectedId]);
 
   useEffect(() => {
     loadClients();
@@ -423,25 +421,33 @@ export default function CoachDashboard() {
 
   const loadClientDetail = useCallback(async (clientId) => {
     setProgramLoading(true);
-    setSessionsLoading(true);
-    const [prog, sess, thread, photoList] = await Promise.all([
+    setActivityLoading(true);
+    const [prog, loggedSets, moods, thread, photoList] = await Promise.all([
       fetchProgramWithExercises(clientId),
-      fetchRecentSessions(clientId, sinceDate),
-      fetchThread(coachId, clientId),
+      fetchRecentLoggedSets(clientId, sinceDate),
+      fetchMoodCheckins(clientId, sinceDate),
+      fetchThread(clientId),
       fetchProgressPhotos(clientId),
     ]);
     setProgram(prog);
     setProgramLoading(false);
-    setSessions(sess);
-    setSessionsLoading(false);
+
+    const byDate = new Map();
+    loggedSets.forEach((s) => {
+      const date = dateStrOf(s.logged_at);
+      byDate.set(date, (byDate.get(date) || 0) + 1);
+    });
+    const moodByDate = new Map();
+    moods.forEach((m) => moodByDate.set(dateStrOf(m.logged_at), m));
+    const summaries = Array.from(byDate.entries())
+      .map(([date, setCount]) => ({ date, setCount, mood: moodByDate.get(date) || null }))
+      .sort((a, b) => b.date.localeCompare(a.date));
+    setDailySummaries(summaries);
+    setActivityLoading(false);
+
     setMessages(thread);
     setPhotos(photoList);
-
-    if (thread.some((m) => m.sender_id === clientId && !m.read_at)) {
-      await markThreadRead(coachId, clientId);
-      setLatestByClient((prev) => (prev[clientId] ? { ...prev, [clientId]: { ...prev[clientId], read_at: new Date().toISOString() } } : prev));
-    }
-  }, [coachId, sinceDate]);
+  }, [sinceDate]);
 
   useEffect(() => {
     if (selectedId) loadClientDetail(selectedId);
@@ -449,13 +455,10 @@ export default function CoachDashboard() {
 
   useEffect(() => {
     if (!selectedId) return;
-    return subscribeToThread(coachId, selectedId, (m) => setMessages((prev) => [...prev, m]));
-  }, [coachId, selectedId]);
+    return subscribeToThread(selectedId, (m) => setMessages((prev) => [...prev, m]));
+  }, [selectedId]);
 
-  const unreadTotal = clients.filter((c) => {
-    const last = latestByClient[c.id];
-    return last && last.sender_id === c.id && !last.read_at;
-  }).length;
+  const unreadTotal = clients.filter((c) => latestByClient[c.id]?.sender === "client").length;
 
   function patchLocalExercise(exId, patch) {
     setProgram((prev) => ({ ...prev, exercises: prev.exercises.map((ex) => (ex.id === exId ? { ...ex, ...patch } : ex)) }));
@@ -485,8 +488,8 @@ export default function CoachDashboard() {
   }
 
   async function handleAddExercise() {
-    const orderIndex = program.exercises.length;
-    const created = await addExercise(program.id, orderIndex);
+    const sortOrder = program.exercises.length;
+    const created = await addExercise(program.id, sortOrder);
     setProgram((prev) => ({ ...prev, exercises: [...prev.exercises, created] }));
   }
 
@@ -503,7 +506,6 @@ export default function CoachDashboard() {
     setCreatingProgram(true);
     try {
       const created = await createProgram({
-        coachId,
         clientId: selectedId,
         weekLabel: "Week 1 · Day 1",
         title: "New program",
@@ -516,18 +518,18 @@ export default function CoachDashboard() {
   }
 
   async function handleSendMessage(text) {
-    const msg = await sendMessage({ senderId: coachId, recipientId: selectedId, text });
+    const msg = await sendMessage({ clientId: selectedId, sender: "coach", text });
     setMessages((prev) => [...prev, msg]);
     setLatestByClient((prev) => ({ ...prev, [selectedId]: msg }));
   }
 
-  async function toggleJoined(clientId, joined) {
-    setClients((prev) => prev.map((c) => (c.id === clientId ? { ...c, joined_challenge: joined } : c)));
-    try {
-      await updateProfile(clientId, { joined_challenge: joined });
-    } catch (e) {
-      console.error("Failed to update challenge status", e);
-    }
+  function toggleJoined(clientId) {
+    setJoinedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(clientId)) next.delete(clientId);
+      else next.add(clientId);
+      return next;
+    });
   }
 
   const selected = clients.find((c) => c.id === selectedId);
@@ -557,8 +559,8 @@ export default function CoachDashboard() {
                 client={selected}
                 program={program}
                 programLoading={programLoading}
-                sessions={sessions}
-                sessionsLoading={sessionsLoading}
+                dailySummaries={dailySummaries}
+                activityLoading={activityLoading}
                 messages={messages}
                 photos={photos}
                 onEditField={editField}
@@ -569,7 +571,6 @@ export default function CoachDashboard() {
                 onCreateProgram={handleCreateProgram}
                 creatingProgram={creatingProgram}
                 onSendMessage={handleSendMessage}
-                coachId={coachId}
               />
             )}
           </>
@@ -581,7 +582,7 @@ export default function CoachDashboard() {
       )}
 
       {view === "challenge" && (
-        <ChallengeTracker clients={clients} onToggleJoined={toggleJoined} />
+        <ChallengeTracker clients={clients} joinedIds={joinedIds} onToggleJoined={toggleJoined} />
       )}
     </div>
   );

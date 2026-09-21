@@ -9,7 +9,6 @@ export default function AuthPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("client");
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [busy, setBusy] = useState(false);
@@ -23,7 +22,7 @@ export default function AuthPage() {
       if (mode === "login") {
         await signIn({ email, password });
       } else {
-        const result = await signUp({ email, password, name, role });
+        const result = await signUp({ email, password, name });
         if (result.needsEmailConfirmation) {
           setInfo("Check your email to confirm your account, then come back and sign in.");
           setMode("login");
@@ -96,10 +95,13 @@ export default function AuthPage() {
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {mode === "signup" && (
-            <div>
-              <label style={{ fontSize: 11, color: C.textMuted, fontWeight: 700 }}>Name</label>
-              <input required value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} placeholder="Your full name" />
-            </div>
+            <>
+              <div style={{ fontSize: 12, color: C.textSecondary }}>Creating an account signs you up as an athlete, linked to your coach.</div>
+              <div>
+                <label style={{ fontSize: 11, color: C.textMuted, fontWeight: 700 }}>Name</label>
+                <input required value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} placeholder="Your full name" />
+              </div>
+            </>
           )}
           <div>
             <label style={{ fontSize: 11, color: C.textMuted, fontWeight: 700 }}>Email</label>
@@ -117,37 +119,6 @@ export default function AuthPage() {
               placeholder="At least 6 characters"
             />
           </div>
-
-          {mode === "signup" && (
-            <div>
-              <label style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, display: "block", marginBottom: 6 }}>I am a...</label>
-              <div style={{ display: "flex", gap: 6 }}>
-                {[
-                  { id: "client", label: "Athlete" },
-                  { id: "coach", label: "Coach" },
-                ].map((opt) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => setRole(opt.id)}
-                    style={{
-                      flex: 1,
-                      fontSize: 12.5,
-                      fontWeight: 700,
-                      padding: "8px 0",
-                      borderRadius: 8,
-                      border: `1.5px solid ${role === opt.id ? C.signalText : C.line}`,
-                      cursor: "pointer",
-                      background: role === opt.id ? C.signalSoft : "#fff",
-                      color: role === opt.id ? C.signalText : C.textSecondary,
-                    }}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
           {error && <div style={{ fontSize: 12.5, color: "#A6403C", background: "#F3E9E9", borderRadius: 6, padding: "8px 10px" }}>{error}</div>}
           {info && <div style={{ fontSize: 12.5, color: C.success, background: C.successSoft, borderRadius: 6, padding: "8px 10px" }}>{info}</div>}

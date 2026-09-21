@@ -20,6 +20,19 @@ export function formatDateLabel(dateStr) {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+// Start/end ISO instants for a given calendar date string ("YYYY-MM-DD"),
+// used to filter timestamptz columns (logged_at, etc.) by local calendar day.
+export function dayBounds(dateStr) {
+  const start = new Date(`${dateStr}T00:00:00`);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
+export function dateStrOf(isoString) {
+  return toDateStr(new Date(isoString));
+}
+
 export function relativeTimeLabel(isoString) {
   if (!isoString) return "never";
   const then = new Date(isoString);
