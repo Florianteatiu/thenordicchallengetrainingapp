@@ -54,6 +54,38 @@ create policy "clients_see_own_coach" on public.coaches
 alter table public.coaches add column if not exists phone text;
 
 -- ----------------------------------------------------------------------------
+-- Challenge join status: `clients` had no column for it, so "I'm in" on the
+-- athlete's Home tab was session-only UI state that reset on every reload
+-- and never reached the coach dashboard. No new policy needed — the
+-- existing "clients update own row" and "coach sees own clients" policies
+-- already cover every column.
+-- ----------------------------------------------------------------------------
+
+alter table public.clients add column if not exists joined_challenge boolean not null default false;
+
+-- ----------------------------------------------------------------------------
+-- Which program is "current": a client can have several programs (a coach
+-- can build one without disturbing what their client currently sees), and
+-- exactly one of them should be the one the athlete app actually shows.
+-- Previously this was just "whichever was created most recently," which
+-- meant creating any new program — even just to try something out — silently
+-- replaced what the client saw. No new policy needed.
+-- ----------------------------------------------------------------------------
+
+alter table public.programs add column if not exists is_active boolean not null default false;
+
+-- Backfill: mark each client's most-recently-created program active, since
+-- that's the one "most recently created wins" was already showing them —
+-- this preserves current behavior for every existing assignment instead of
+-- silently leaving all of them inactive.
+update public.programs p
+set is_active = true
+where p.client_id is not null
+  and p.created_at = (
+    select max(p2.created_at) from public.programs p2 where p2.client_id = p.client_id
+  );
+
+-- ----------------------------------------------------------------------------
 -- Program templates: coach_id on programs, so a program can exist before any
 -- client is assigned to it.
 -- ----------------------------------------------------------------------------

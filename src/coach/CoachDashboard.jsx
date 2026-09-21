@@ -9,10 +9,11 @@ import logo from "../assets/logo.png";
 import { initialsFor } from "../lib/utils";
 import { fetchClientsForCoach } from "../lib/api/clients";
 import {
-  fetchProgramsForClient, fetchProgramById, createProgram, updateProgramMeta, deleteProgram,
+  fetchProgramsForClient, fetchProgramById, createProgram, updateProgramMeta, deleteProgram, setActiveProgram,
   addExercise, updateExercise, deleteExercise,
   fetchTemplatesForCoach, createTemplate, assignTemplateToClient,
 } from "../lib/api/programs";
+import { updateClient } from "../lib/api/clients";
 import { fetchRecentLoggedSets, fetchRecentLoggedSetsForClients, fetchMoodCheckins, fetchMoodCheckinsForClients } from "../lib/api/workouts";
 import { fetchThread, fetchLatestMessagePerClient, sendMessage, subscribeToThread } from "../lib/api/messages";
 import { fetchProgressPhotos } from "../lib/api/photos";
@@ -271,22 +272,27 @@ function MessagesThread({ messages, onSend }) {
 }
 
 // ---------- Program picker (a client can have more than one over time) ----------
-function ProgramPicker({ clientPrograms, activeProgramId, onSelectProgram, onCreateProgram, creatingProgram, templates, onAssignTemplate, assigningTemplateId, onDeleteProgram }) {
+// `selectedProgramId` is which one the coach is currently viewing/editing
+// here; a program's own `is_active` flag is the separate, independent fact
+// of which one the client's app actually shows them. Adding or assigning a
+// program never changes what's active — only "Set as current" does.
+function ProgramPicker({ clientPrograms, selectedProgramId, onSelectProgram, onCreateProgram, creatingProgram, templates, onAssignTemplate, assigningTemplateId, onDeleteProgram }) {
   return (
     <div style={{ marginBottom: 14 }}>
       {clientPrograms.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
           {clientPrograms.map((p) => (
-            <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 2, background: p.id === activeProgramId ? C.ink : C.paperMuted, borderRadius: 20, paddingRight: 4 }}>
+            <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 2, background: p.id === selectedProgramId ? C.ink : C.paperMuted, borderRadius: 20, paddingRight: 4 }}>
               <button onClick={() => onSelectProgram(p.id)} style={{
                 fontSize: 12, fontWeight: 700, padding: "6px 4px 6px 12px", borderRadius: 20, border: "none", cursor: "pointer", background: "none",
-                color: p.id === activeProgramId ? "#fff" : C.textSecondary,
+                color: p.id === selectedProgramId ? "#fff" : C.textSecondary,
               }}>
                 {p.title || "Untitled"} <span style={{ opacity: 0.7, fontWeight: 600 }}>· {p.exerciseCount}</span>
+                {p.is_active && <span style={{ marginLeft: 5, fontSize: 10, color: p.id === selectedProgramId ? C.signal : C.success }}>● current</span>}
               </button>
               <button onClick={() => onDeleteProgram(p.id)} aria-label="Delete program" style={{
                 width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "50%", border: "none", cursor: "pointer", background: "none",
-                color: p.id === activeProgramId ? "rgba(255,255,255,0.7)" : C.textMuted,
+                color: p.id === selectedProgramId ? "rgba(255,255,255,0.7)" : C.textMuted,
               }}>
                 <X size={12} />
               </button>
@@ -315,7 +321,7 @@ function ProgramPicker({ clientPrograms, activeProgramId, onSelectProgram, onCre
 }
 
 // ---------- Client detail ----------
-function ClientDetail({ client, program, programLoading, clientPrograms, onSelectProgram, onDeleteProgram, templates, onAssignTemplate, assigningTemplateId, dailySummaries, activityLoading, messages, photos, onEditField, onEditAlternatives, onRemove, onAdd, onEditMeta, onCreateProgram, creatingProgram, onSendMessage }) {
+function ClientDetail({ client, program, programLoading, clientPrograms, onSelectProgram, onDeleteProgram, onSetActiveProgram, templates, onAssignTemplate, assigningTemplateId, dailySummaries, activityLoading, messages, photos, onEditField, onEditAlternatives, onRemove, onAdd, onEditMeta, onCreateProgram, creatingProgram, onSendMessage }) {
   const [tab, setTab] = useState("program");
   const tabs = [
     { id: "program", label: "Program" },
@@ -348,7 +354,7 @@ function ClientDetail({ client, program, programLoading, clientPrograms, onSelec
           <>
             <ProgramPicker
               clientPrograms={clientPrograms}
-              activeProgramId={program?.id}
+              selectedProgramId={program?.id}
               onSelectProgram={onSelectProgram}
               onCreateProgram={onCreateProgram}
               creatingProgram={creatingProgram}
@@ -357,9 +363,19 @@ function ClientDetail({ client, program, programLoading, clientPrograms, onSelec
               assigningTemplateId={assigningTemplateId}
               onDeleteProgram={onDeleteProgram}
             />
-            {programLoading
-              ? <div style={{ fontSize: 13, color: C.textSecondary }}>Loading...</div>
-              : <ProgramEditor program={program} onEditField={onEditField} onEditAlternatives={onEditAlternatives} onRemove={onRemove} onAdd={onAdd} onEditMeta={onEditMeta} />}
+            {programLoading ? (
+              <div style={{ fontSize: 13, color: C.textSecondary }}>Loading...</div>
+            ) : (
+              <>
+                {program && !program.is_active && (
+                  <div style={{ ...cardStyle, padding: "10px 14px", marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, background: C.signalSoft, border: "none" }}>
+                    <span style={{ fontSize: 12.5, color: C.signalText, fontWeight: 700 }}>This isn't the program {client.name.split(" ")[0]} currently sees.</span>
+                    <button onClick={() => onSetActiveProgram(program.id)} style={{ ...ghostBtn, background: "#fff", flexShrink: 0 }}>Set as current</button>
+                  </div>
+                )}
+                <ProgramEditor program={program} onEditField={onEditField} onEditAlternatives={onEditAlternatives} onRemove={onRemove} onAdd={onAdd} onEditMeta={onEditMeta} />
+              </>
+            )}
           </>
         )}
         {tab === "activity" && <ActivityLog dailySummaries={dailySummaries} loading={activityLoading} />}
@@ -408,10 +424,8 @@ function MessagesInbox({ clients, latestByClient, onOpenClient }) {
 }
 
 // ---------- Challenge tracker ----------
-// Note: the existing schema has no column for "joined a challenge" — this is
-// kept as session-only state (resets on reload) rather than adding one.
-function ChallengeTracker({ clients, joinedIds, onToggleJoined }) {
-  const joinedCount = clients.filter((c) => joinedIds.has(c.id)).length;
+function ChallengeTracker({ clients, onToggleJoined }) {
+  const joinedCount = clients.filter((c) => c.joined_challenge).length;
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "20px 28px" }}>
       <div style={{ fontSize: 21, fontWeight: 900, color: C.textPrimary, marginBottom: 4 }}>This month's challenge</div>
@@ -422,11 +436,11 @@ function ChallengeTracker({ clients, joinedIds, onToggleJoined }) {
           <div key={c.id} style={{ ...cardStyle, display: "flex", alignItems: "center", gap: 12, padding: "12px 14px" }}>
             <Avatar name={c.name} avatarUrl={c.photo_url} size={34} />
             <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: C.textPrimary }}>{c.name}</div>
-            <button onClick={() => onToggleJoined(c.id)} style={{
+            <button onClick={() => onToggleJoined(c.id, !c.joined_challenge)} style={{
               fontSize: 11.5, fontWeight: 700, padding: "5px 11px", borderRadius: 20, border: "none", cursor: "pointer",
-              background: joinedIds.has(c.id) ? C.successSoft : "#EFEEEC", color: joinedIds.has(c.id) ? C.success : C.textSecondary,
+              background: c.joined_challenge ? C.successSoft : "#EFEEEC", color: c.joined_challenge ? C.success : C.textSecondary,
             }}>
-              {joinedIds.has(c.id) ? "Joined ✓" : "Not joined"}
+              {c.joined_challenge ? "Joined ✓" : "Not joined"}
             </button>
           </div>
         ))}
@@ -496,7 +510,6 @@ export default function CoachDashboard() {
   const [clientsLoading, setClientsLoading] = useState(true);
   const [view, setView] = useState("clients");
   const [selectedId, setSelectedId] = useState(null);
-  const [joinedIds, setJoinedIds] = useState(() => new Set());
 
   const [program, setProgram] = useState(null);
   const [programLoading, setProgramLoading] = useState(false);
@@ -672,6 +685,7 @@ export default function CoachDashboard() {
         weekLabel: "Week 1 · Day 1",
         title: "New program",
         durationMin: 45,
+        isActive: clientPrograms.length === 0, // auto-active only if it's their first ever
       });
       setClientPrograms((prev) => [{ ...created, exerciseCount: 0 }, ...prev]);
       setProgram(created);
@@ -683,12 +697,18 @@ export default function CoachDashboard() {
   async function handleAssignTemplate(templateId) {
     setAssigningTemplateId(templateId);
     try {
-      const assigned = await assignTemplateToClient(templateId, selectedId);
+      const assigned = await assignTemplateToClient(templateId, selectedId, clientPrograms.length === 0);
       setClientPrograms((prev) => [{ ...assigned, exerciseCount: assigned.exercises.length }, ...prev]);
       setProgram(assigned);
     } finally {
       setAssigningTemplateId(null);
     }
+  }
+
+  async function handleSetActiveProgram(programId) {
+    await setActiveProgram(selectedId, programId);
+    setClientPrograms((prev) => prev.map((p) => ({ ...p, is_active: p.id === programId })));
+    setProgram((prev) => (prev?.id === programId ? { ...prev, is_active: true } : prev));
   }
 
   async function selectProgram(id) {
@@ -708,7 +728,9 @@ export default function CoachDashboard() {
       window.alert(e.message || "Failed to delete program.");
       return;
     }
-    const remaining = clientPrograms.filter((p) => p.id !== id);
+    // Re-fetch rather than patch locally: deleteProgram may have promoted a
+    // different program to active server-side if the deleted one was it.
+    const remaining = await fetchProgramsForClient(selectedId);
     setClientPrograms(remaining);
     if (program?.id === id) {
       if (remaining.length > 0) {
@@ -806,13 +828,13 @@ export default function CoachDashboard() {
     setLatestByClient((prev) => ({ ...prev, [selectedId]: msg }));
   }
 
-  function toggleJoined(clientId) {
-    setJoinedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(clientId)) next.delete(clientId);
-      else next.add(clientId);
-      return next;
-    });
+  async function toggleJoined(clientId, joined) {
+    setClients((prev) => prev.map((c) => (c.id === clientId ? { ...c, joined_challenge: joined } : c)));
+    try {
+      await updateClient(clientId, { joined_challenge: joined });
+    } catch (e) {
+      console.error("Failed to update challenge status", e);
+    }
   }
 
   const selected = clients.find((c) => c.id === selectedId);
@@ -845,6 +867,7 @@ export default function CoachDashboard() {
                 clientPrograms={clientPrograms}
                 onSelectProgram={selectProgram}
                 onDeleteProgram={handleDeleteClientProgram}
+                onSetActiveProgram={handleSetActiveProgram}
                 templates={templates}
                 onAssignTemplate={handleAssignTemplate}
                 assigningTemplateId={assigningTemplateId}
@@ -890,7 +913,7 @@ export default function CoachDashboard() {
       )}
 
       {view === "challenge" && (
-        <ChallengeTracker clients={clients} joinedIds={joinedIds} onToggleJoined={toggleJoined} />
+        <ChallengeTracker clients={clients} onToggleJoined={toggleJoined} />
       )}
     </div>
   );

@@ -867,7 +867,6 @@ export default function PTApp() {
   const [openPhoto, setOpenPhoto] = useState(null);
   const [photos, setPhotos] = useState([]);
   const [celebrate, setCelebrate] = useState(false);
-  const [joinedChallenge, setJoinedChallenge] = useState(false);
   const [messages, setMessages] = useState([]);
   const [timer, setTimer] = useState({ active: false, running: false, seconds: 0 });
   const intervalRef = useRef(null);
@@ -1063,6 +1062,11 @@ export default function PTApp() {
     setPhotos((prev) => [...prev, photo]);
   }
 
+  async function handleToggleChallenge() {
+    await updateClient(profile.id, { joined_challenge: !profile.joined_challenge });
+    await refreshProfile();
+  }
+
   async function openHistory(exercise) {
     setHistoryExercise(exercise);
     const data = await fetchExerciseHistory(exercise.id);
@@ -1116,8 +1120,8 @@ export default function PTApp() {
             weekVolume={weekVolume}
             weekPRs={weekPRs}
             badges={badges}
-            joinedChallenge={joinedChallenge}
-            onToggleJoined={() => setJoinedChallenge((j) => !j)}
+            joinedChallenge={profile.joined_challenge}
+            onToggleJoined={handleToggleChallenge}
           />
         )}
         {tab === "workout" && (
