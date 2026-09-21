@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Users, MessageCircle, Trophy, Search, Trash2, Plus, ChevronRight, X,
-  Image as ImageIcon, Send, Flame, Clock, LogOut, LayoutTemplate,
+  Image as ImageIcon, Send, Flame, Clock, LogOut, LayoutTemplate, Pencil, Bell,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { C, fontStack, ghostBtn, cardStyle, editInputStyle } from "../theme";
@@ -14,9 +14,11 @@ import {
   fetchTemplatesForCoach, createTemplate, assignTemplateToClient,
 } from "../lib/api/programs";
 import { updateClient } from "../lib/api/clients";
-import { fetchRecentLoggedSets, fetchRecentLoggedSetsForClients, fetchMoodCheckins, fetchMoodCheckinsForClients } from "../lib/api/workouts";
+import { updateCoach } from "../lib/api/coaches";
+import { fetchRecentLoggedSetsWithExercise, fetchRecentLoggedSetsForClients, fetchMoodCheckins, fetchMoodCheckinsForClients } from "../lib/api/workouts";
 import { fetchThread, fetchLatestMessagePerClient, sendMessage, subscribeToThread } from "../lib/api/messages";
 import { fetchProgressPhotos } from "../lib/api/photos";
+import { enablePushNotifications, notifyClient } from "../lib/push";
 import { relativeTimeLabel, relativeDayLabel, dateStrOf, todayStr, dayBounds } from "../lib/dateUtils";
 
 function Avatar({ name, avatarUrl, size = 40 }) {
@@ -41,7 +43,7 @@ function StatusPill({ status }) {
 }
 
 // ---------- Sidebar nav ----------
-function Sidebar({ view, onNavigate, unreadTotal, coachName, onSignOut }) {
+function Sidebar({ view, onNavigate, unreadTotal, coachName, onSignOut, onEditProfile, onEnableNotifications }) {
   const items = [
     { id: "clients", label: "Clients", icon: Users },
     { id: "templates", label: "Templates", icon: LayoutTemplate },
@@ -73,6 +75,12 @@ function Sidebar({ view, onNavigate, unreadTotal, coachName, onSignOut }) {
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 6px", borderTop: "1px solid rgba(255,255,255,0.1)" }}>
         <img src={logo} alt="" style={{ width: 30, height: 30, borderRadius: "50%" }} />
         <div style={{ fontSize: 12.5, fontWeight: 700, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{coachName}</div>
+        <button onClick={onEnableNotifications} aria-label="Enable notifications" style={{ background: "none", border: "none", color: "#9C9A97", cursor: "pointer", display: "flex" }}>
+          <Bell size={15} />
+        </button>
+        <button onClick={onEditProfile} aria-label="Edit profile" style={{ background: "none", border: "none", color: "#9C9A97", cursor: "pointer", display: "flex" }}>
+          <Pencil size={15} />
+        </button>
         <button onClick={onSignOut} aria-label="Sign out" style={{ background: "none", border: "none", color: "#9C9A97", cursor: "pointer", display: "flex" }}>
           <LogOut size={15} />
         </button>
@@ -219,14 +227,26 @@ function ActivityLog({ dailySummaries, loading }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {dailySummaries.length === 0 && <div style={{ fontSize: 13, color: C.textSecondary }}>No sessions logged yet.</div>}
       {dailySummaries.map((day) => (
-        <div key={day.date} style={{ ...cardStyle, padding: "12px 14px", display: "flex", gap: 10, alignItems: "flex-start" }}>
-          <Clock size={15} color={C.signalText} style={{ marginTop: 2, flexShrink: 0 }} />
-          <div>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: C.textPrimary }}>{relativeDayLabel(day.date)}</div>
-            <div style={{ fontSize: 12.5, color: C.textSecondary, marginTop: 2 }}>
-              {day.setCount} sets logged{day.mood ? `, effort: ${day.mood.emoji} ${day.mood.label}` : ""}
+        <div key={day.date} style={{ ...cardStyle, padding: "12px 14px" }}>
+          <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <Clock size={15} color={C.signalText} style={{ marginTop: 2, flexShrink: 0 }} />
+            <div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: C.textPrimary }}>{relativeDayLabel(day.date)}</div>
+              <div style={{ fontSize: 12.5, color: C.textSecondary, marginTop: 2 }}>
+                {day.setCount} sets logged{day.mood ? `, effort: ${day.mood.emoji} ${day.mood.label}` : ""}
+              </div>
             </div>
           </div>
+          {day.exercises.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 8, paddingLeft: 25 }}>
+              {day.exercises.map((ex) => (
+                <div key={ex.name} style={{ fontSize: 12, color: C.textSecondary }}>
+                  <span style={{ color: C.textPrimary, fontWeight: 700 }}>{ex.name}: </span>
+                  {ex.sets.map((s) => `${s.reps ?? "-"} x ${s.weight_kg ?? 0}kg`).join(", ")}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       ))}
     </div>
@@ -321,8 +341,7 @@ function ProgramPicker({ clientPrograms, selectedProgramId, onSelectProgram, onC
 }
 
 // ---------- Client detail ----------
-function ClientDetail({ client, program, programLoading, clientPrograms, onSelectProgram, onDeleteProgram, onSetActiveProgram, templates, onAssignTemplate, assigningTemplateId, dailySummaries, activityLoading, messages, photos, onEditField, onEditAlternatives, onRemove, onAdd, onEditMeta, onCreateProgram, creatingProgram, onSendMessage }) {
-  const [tab, setTab] = useState("program");
+function ClientDetail({ client, program, programLoading, clientPrograms, onSelectProgram, onDeleteProgram, onSetActiveProgram, templates, onAssignTemplate, assigningTemplateId, dailySummaries, activityLoading, messages, photos, onEditField, onEditAlternatives, onRemove, onAdd, onEditMeta, onCreateProgram, creatingProgram, onSendMessage, tab, onTabChange, onUpdateWeeklyTarget }) {
   const tabs = [
     { id: "program", label: "Program" },
     { id: "activity", label: "Activity" },
@@ -337,12 +356,25 @@ function ClientDetail({ client, program, programLoading, clientPrograms, onSelec
           <div style={{ fontSize: 21, fontWeight: 900, color: C.textPrimary }}>{client.name}</div>
           <div style={{ fontSize: 12.5, color: C.textSecondary }}>Last active {relativeTimeLabel(client.lastActiveAt)}</div>
         </div>
-        <div style={{ marginLeft: "auto" }}><StatusPill status={client.todayStatus} /></div>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: C.textSecondary }}>
+            Sessions/week
+            <input
+              type="number"
+              min={1}
+              max={14}
+              value={client.weekly_target ?? 4}
+              onChange={(e) => onUpdateWeeklyTarget(client.id, Number(e.target.value) || 1)}
+              style={{ ...editInputStyle, width: 40, padding: "3px 4px", textAlign: "center" }}
+            />
+          </div>
+          <StatusPill status={client.todayStatus} />
+        </div>
       </div>
 
       <div style={{ display: "flex", gap: 6, margin: "18px 0 18px" }}>
         {tabs.map((t) => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{
+          <button key={t.id} onClick={() => onTabChange(t.id)} style={{
             fontSize: 12.5, fontWeight: 700, padding: "7px 14px", borderRadius: 20, border: "none", cursor: "pointer",
             background: tab === t.id ? C.ink : C.paperMuted, color: tab === t.id ? "#fff" : C.textSecondary,
           }}>{t.label}</button>
@@ -405,19 +437,22 @@ function MessagesInbox({ clients, latestByClient, onOpenClient }) {
       <div style={{ fontSize: 21, fontWeight: 900, color: C.textPrimary, marginBottom: 16 }}>Messages</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 560 }}>
         {rows.length === 0 && <div style={{ fontSize: 13, color: C.textSecondary }}>No conversations yet.</div>}
-        {rows.map(({ client, last }) => (
-          <button key={client.id} onClick={() => onOpenClient(client.id)} style={{ ...cardStyle, display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", textAlign: "left", cursor: "pointer", width: "100%" }}>
-            <Avatar name={client.name} avatarUrl={client.photo_url} size={36} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: C.textPrimary }}>{client.name}</div>
-              <div style={{ fontSize: 12, color: C.textSecondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {last.sender === "coach" ? "You: " : ""}{last.text || "(attachment)"}
+        {rows.map(({ client, last }) => {
+          const unread = last.sender === "client" && (!client.coach_last_read_at || new Date(last.created_at) > new Date(client.coach_last_read_at));
+          return (
+            <button key={client.id} onClick={() => onOpenClient(client.id)} style={{ ...cardStyle, display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", textAlign: "left", cursor: "pointer", width: "100%" }}>
+              <Avatar name={client.name} avatarUrl={client.photo_url} size={36} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.textPrimary }}>{client.name}</div>
+                <div style={{ fontSize: 12, color: C.textSecondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {last.sender === "coach" ? "You: " : ""}{last.text || "(attachment)"}
+                </div>
               </div>
-            </div>
-            {last.sender === "client" && <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.signal, flexShrink: 0 }} />}
-            <ChevronRight size={16} color={C.textMuted} />
-          </button>
-        ))}
+              {unread && <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.signal, flexShrink: 0 }} />}
+              <ChevronRight size={16} color={C.textMuted} />
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -501,15 +536,52 @@ function TemplatesView({ templates, templatesLoading, templatesError, activeTemp
   );
 }
 
+// ---------- Edit profile modal ----------
+function EditProfileModal({ coach, onSave, onClose }) {
+  const [name, setName] = useState(coach.name || "");
+  const [phone, setPhone] = useState(coach.phone || "");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await onSave({ name, phone: phone || null });
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 80, padding: 20 }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ ...cardStyle, width: "100%", maxWidth: 340, padding: 20 }}>
+        <div style={{ fontSize: 15, fontWeight: 800, color: C.textPrimary, marginBottom: 14 }}>Edit your profile</div>
+        <label style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 700 }}>Name</label>
+        <input value={name} onChange={(e) => setName(e.target.value)} style={{ ...editInputStyle, marginBottom: 10 }} />
+        <label style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 700 }}>Phone (shown to clients)</label>
+        <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+46 70 000 00 00" style={{ ...editInputStyle, marginBottom: 16 }} />
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={onClose} style={{ ...ghostBtn, flex: 1, justifyContent: "center" }}>Cancel</button>
+          <button onClick={save} disabled={saving} style={{ flex: 1, background: C.signal, color: C.onSignal, border: "none", borderRadius: 20, fontWeight: 700, fontSize: 12.5, cursor: saving ? "default" : "pointer" }}>
+            {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ---------- Root dashboard ----------
 export default function CoachDashboard() {
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, refreshProfile } = useAuth();
   const coachId = profile.id;
 
   const [clients, setClients] = useState([]);
   const [clientsLoading, setClientsLoading] = useState(true);
   const [view, setView] = useState("clients");
   const [selectedId, setSelectedId] = useState(null);
+  const [clientDetailTab, setClientDetailTab] = useState("program");
+  const [editingProfile, setEditingProfile] = useState(false);
 
   const [program, setProgram] = useState(null);
   const [programLoading, setProgramLoading] = useState(false);
@@ -594,7 +666,7 @@ export default function CoachDashboard() {
     setActivityLoading(true);
     const [progs, loggedSets, moods, thread, photoList] = await Promise.all([
       fetchProgramsForClient(clientId),
-      fetchRecentLoggedSets(clientId, sinceDate),
+      fetchRecentLoggedSetsWithExercise(clientId, sinceDate),
       fetchMoodCheckins(clientId, sinceDate),
       fetchThread(clientId),
       fetchProgressPhotos(clientId),
@@ -610,12 +682,25 @@ export default function CoachDashboard() {
     const byDate = new Map();
     loggedSets.forEach((s) => {
       const date = dateStrOf(s.logged_at);
-      byDate.set(date, (byDate.get(date) || 0) + 1);
+      if (!byDate.has(date)) byDate.set(date, { setCount: 0, byExercise: new Map() });
+      const day = byDate.get(date);
+      day.setCount += 1;
+      const name = s.exercises?.name || "Exercise";
+      if (!day.byExercise.has(name)) day.byExercise.set(name, []);
+      day.byExercise.get(name).push(s);
     });
     const moodByDate = new Map();
     moods.forEach((m) => moodByDate.set(dateStrOf(m.logged_at), m));
     const summaries = Array.from(byDate.entries())
-      .map(([date, setCount]) => ({ date, setCount, mood: moodByDate.get(date) || null }))
+      .map(([date, day]) => ({
+        date,
+        setCount: day.setCount,
+        mood: moodByDate.get(date) || null,
+        exercises: Array.from(day.byExercise.entries()).map(([name, sets]) => ({
+          name,
+          sets: sets.sort((a, b) => (a.set_number || 0) - (b.set_number || 0)),
+        })),
+      }))
       .sort((a, b) => b.date.localeCompare(a.date));
     setDailySummaries(summaries);
     setActivityLoading(false);
@@ -633,7 +718,42 @@ export default function CoachDashboard() {
     return subscribeToThread(selectedId, (m) => setMessages((prev) => [...prev, m]));
   }, [selectedId]);
 
-  const unreadTotal = clients.filter((c) => latestByClient[c.id]?.sender === "client").length;
+  // Covers switching clients directly from the client list while already on
+  // the Messages tab, not just opening the tab itself.
+  useEffect(() => {
+    if (selectedId && clientDetailTab === "messages") markThreadRead(selectedId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, clientDetailTab]);
+
+  function isUnread(client) {
+    const last = latestByClient[client.id];
+    if (!last || last.sender !== "client") return false;
+    if (!client.coach_last_read_at) return true;
+    return new Date(last.created_at) > new Date(client.coach_last_read_at);
+  }
+  const unreadTotal = clients.filter(isUnread).length;
+
+  async function markThreadRead(clientId) {
+    const now = new Date().toISOString();
+    setClients((prev) => prev.map((c) => (c.id === clientId ? { ...c, coach_last_read_at: now } : c)));
+    try {
+      await updateClient(clientId, { coach_last_read_at: now });
+    } catch (e) {
+      console.error("Failed to mark thread read", e);
+    }
+  }
+
+  function handleClientDetailTabChange(newTab) {
+    setClientDetailTab(newTab);
+    if (newTab === "messages" && selectedId) markThreadRead(selectedId);
+  }
+
+  function openClientMessages(clientId) {
+    setSelectedId(clientId);
+    setClientDetailTab("messages");
+    setView("clients");
+    markThreadRead(clientId);
+  }
 
   function patchLocalExercise(exId, patch) {
     setProgram((prev) => ({ ...prev, exercises: prev.exercises.map((ex) => (ex.id === exId ? { ...ex, ...patch } : ex)) }));
@@ -679,16 +799,18 @@ export default function CoachDashboard() {
   async function handleCreateProgram() {
     setCreatingProgram(true);
     try {
+      const isFirst = clientPrograms.length === 0;
       const created = await createProgram({
         coachId,
         clientId: selectedId,
         weekLabel: "Week 1 · Day 1",
         title: "New program",
         durationMin: 45,
-        isActive: clientPrograms.length === 0, // auto-active only if it's their first ever
+        isActive: isFirst, // auto-active only if it's their first ever
       });
       setClientPrograms((prev) => [{ ...created, exerciseCount: 0 }, ...prev]);
       setProgram(created);
+      if (isFirst) notifyClient(selectedId, "New training program", "Your coach just uploaded a new program for you.");
     } finally {
       setCreatingProgram(false);
     }
@@ -697,9 +819,11 @@ export default function CoachDashboard() {
   async function handleAssignTemplate(templateId) {
     setAssigningTemplateId(templateId);
     try {
-      const assigned = await assignTemplateToClient(templateId, selectedId, clientPrograms.length === 0);
+      const isFirst = clientPrograms.length === 0;
+      const assigned = await assignTemplateToClient(templateId, selectedId, isFirst);
       setClientPrograms((prev) => [{ ...assigned, exerciseCount: assigned.exercises.length }, ...prev]);
       setProgram(assigned);
+      if (isFirst) notifyClient(selectedId, "New training program", "Your coach just uploaded a new program for you.");
     } finally {
       setAssigningTemplateId(null);
     }
@@ -709,6 +833,7 @@ export default function CoachDashboard() {
     await setActiveProgram(selectedId, programId);
     setClientPrograms((prev) => prev.map((p) => ({ ...p, is_active: p.id === programId })));
     setProgram((prev) => (prev?.id === programId ? { ...prev, is_active: true } : prev));
+    notifyClient(selectedId, "New training program", "Your coach just uploaded a new program for you.");
   }
 
   async function selectProgram(id) {
@@ -837,6 +962,29 @@ export default function CoachDashboard() {
     }
   }
 
+  async function handleUpdateWeeklyTarget(clientId, weeklyTarget) {
+    setClients((prev) => prev.map((c) => (c.id === clientId ? { ...c, weekly_target: weeklyTarget } : c)));
+    try {
+      await updateClient(clientId, { weekly_target: weeklyTarget });
+    } catch (e) {
+      console.error("Failed to update weekly target", e);
+    }
+  }
+
+  async function handleUpdateCoachProfile(patch) {
+    await updateCoach(coachId, patch);
+    await refreshProfile();
+  }
+
+  async function handleEnableNotifications() {
+    try {
+      await enablePushNotifications(coachId, "coach");
+      window.alert("Notifications enabled — you'll get an alert when a client completes their program.");
+    } catch (e) {
+      window.alert(e.message || "Couldn't enable notifications on this device.");
+    }
+  }
+
   const selected = clients.find((c) => c.id === selectedId);
 
   if (clientsLoading) {
@@ -849,7 +997,18 @@ export default function CoachDashboard() {
 
   return (
     <div style={{ fontFamily: fontStack, display: "flex", height: "100vh", background: C.paperMuted, overflow: "hidden" }}>
-      <Sidebar view={view} onNavigate={setView} unreadTotal={unreadTotal} coachName={profile.name} onSignOut={signOut} />
+      <Sidebar
+        view={view}
+        onNavigate={setView}
+        unreadTotal={unreadTotal}
+        coachName={profile.name}
+        onSignOut={signOut}
+        onEditProfile={() => setEditingProfile(true)}
+        onEnableNotifications={handleEnableNotifications}
+      />
+      {editingProfile && (
+        <EditProfileModal coach={profile} onSave={handleUpdateCoachProfile} onClose={() => setEditingProfile(false)} />
+      )}
 
       {view === "clients" && (
         clients.length === 0 ? (
@@ -883,6 +1042,9 @@ export default function CoachDashboard() {
                 onCreateProgram={handleCreateProgram}
                 creatingProgram={creatingProgram}
                 onSendMessage={handleSendMessage}
+                tab={clientDetailTab}
+                onTabChange={handleClientDetailTabChange}
+                onUpdateWeeklyTarget={handleUpdateWeeklyTarget}
               />
             )}
           </>
@@ -909,7 +1071,7 @@ export default function CoachDashboard() {
       )}
 
       {view === "messages" && (
-        <MessagesInbox clients={clients} latestByClient={latestByClient} onOpenClient={(id) => { setSelectedId(id); setView("clients"); }} />
+        <MessagesInbox clients={clients} latestByClient={latestByClient} onOpenClient={openClientMessages} />
       )}
 
       {view === "challenge" && (

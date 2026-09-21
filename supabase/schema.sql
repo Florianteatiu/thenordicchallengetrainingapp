@@ -115,6 +115,52 @@ create policy "coach_manages_own_exercises" on public.exercises
   with check (exists (select 1 from public.programs p where p.id = exercises.program_id and p.coach_id = auth.uid()));
 
 -- ----------------------------------------------------------------------------
+-- Unread message tracking: there was no way to tell "client sent a message
+-- the coach hasn't opened yet" apart from "client sent a message the coach
+-- already read but hasn't replied to" — both looked identical (inferred
+-- purely from who sent the last message). The coach dashboard now stamps
+-- this whenever it opens a client's Messages tab. No new policy needed.
+-- ----------------------------------------------------------------------------
+
+alter table public.clients add column if not exists coach_last_read_at timestamptz;
+
+-- ----------------------------------------------------------------------------
+-- Weekly session target: the athlete app showed a hardcoded "X/4 workouts
+-- this week" for every client regardless of what they were actually
+-- prescribed. Coach-editable per client now. No new policy needed.
+-- ----------------------------------------------------------------------------
+
+alter table public.clients add column if not exists weekly_target integer not null default 4;
+
+-- ----------------------------------------------------------------------------
+-- Push notification subscriptions: one row per device/browser a coach or
+-- client has enabled notifications on. `owner_id` is that person's own id
+-- (== auth.uid()), so the same RLS shape as everywhere else works — a
+-- signed-in user only ever sees/writes their own subscriptions. The
+-- send-push edge function reads across all rows using the service role
+-- key, which bypasses RLS entirely, so no separate "coach can read client
+-- subscriptions" policy is needed.
+-- ----------------------------------------------------------------------------
+
+create table if not exists public.push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null,
+  owner_role text not null check (owner_role in ('coach', 'client')),
+  endpoint text not null unique,
+  p256dh text not null,
+  auth text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.push_subscriptions enable row level security;
+
+drop policy if exists "push_subscriptions_owner_all" on public.push_subscriptions;
+create policy "push_subscriptions_owner_all" on public.push_subscriptions
+  for all
+  using (owner_id = auth.uid())
+  with check (owner_id = auth.uid());
+
+-- ----------------------------------------------------------------------------
 -- Storage buckets
 -- ----------------------------------------------------------------------------
 

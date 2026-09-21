@@ -4,7 +4,7 @@ import {
   ChevronDown, ChevronUp, Send, Pause, SkipForward, Home as HomeIcon,
   Dumbbell, Lightbulb, Flame, Trophy, Award, Paperclip, X, Globe,
   AtSign, Video, Music2, Activity, MapPin, TrendingUp, ThumbsUp,
-  Sparkles, Share2, Camera, LogOut,
+  Sparkles, Share2, Camera, LogOut, Bell,
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -22,6 +22,7 @@ import {
 } from "../lib/api/workouts";
 import { fetchThread, sendMessage, subscribeToThread } from "../lib/api/messages";
 import { fetchProgressPhotos, uploadProgressPhoto } from "../lib/api/photos";
+import { enablePushNotifications, notifyCoach } from "../lib/push";
 import {
   computeStreak, computeWeeklyDone, computeWeekVolume, computeWeekPRCount,
   computePreviousBestByExercise, computeTodayProgress, buildHeatmapCells,
@@ -747,7 +748,7 @@ function ConnectTab() {
 }
 
 // ---------- Coach tab ----------
-function CoachTab({ coach, messages, onSend, onSignOut }) {
+function CoachTab({ coach, messages, onSend, onSignOut, onEnableNotifications }) {
   const [draft, setDraft] = useState("");
   const [attachment, setAttachment] = useState(null);
   const endRef = useRef(null);
@@ -787,12 +788,16 @@ function CoachTab({ coach, messages, onSend, onSignOut }) {
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
         {coach?.phone && (
           <a href={`tel:${coach.phone}`} style={{ ...ghostBtn, flex: 1, justifyContent: "center", textDecoration: "none" }}><Phone size={14} /> Call</a>
         )}
         <a href={`mailto:${coach?.email || ""}?subject=Question about my program`} style={{ ...ghostBtn, flex: 1, justifyContent: "center", textDecoration: "none" }}><Mail size={14} /> Email</a>
       </div>
+
+      <button onClick={onEnableNotifications} style={{ ...ghostBtn, width: "100%", justifyContent: "center", marginBottom: 16 }}>
+        <Bell size={14} /> Enable notifications
+      </button>
 
       <div style={{ fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 8 }}>MESSAGES</div>
 
@@ -1041,9 +1046,19 @@ export default function PTApp() {
       if (coach) {
         const msg = await sendMessage({ clientId: profile.id, sender: "client", text: `Effort today: ${option.emoji} ${option.label}` });
         setMessages((m) => [...m, msg]);
+        notifyCoach(profile.coach_id, "Workout completed", `${profile.name} just finished today's session (${option.emoji} ${option.label}).`);
       }
     } catch (e) {
       console.error("Failed to log mood", e);
+    }
+  }
+
+  async function handleEnableNotifications() {
+    try {
+      await enablePushNotifications(profile.id, "client");
+      window.alert("Notifications enabled — you'll get an alert whenever your coach uploads a new program.");
+    } catch (e) {
+      window.alert(e.message || "Couldn't enable notifications on this device.");
     }
   }
 
@@ -1109,7 +1124,7 @@ export default function PTApp() {
             todayProgress={todayProgress}
             streak={streak}
             weeklyDone={weeklyDone}
-            weeklyTarget={WEEKLY_TARGET}
+            weeklyTarget={profile.weekly_target || WEEKLY_TARGET}
             xpBase={profile.xp || 0}
             xpEarnedToday={xpEarnedToday}
             photos={photos}
@@ -1140,7 +1155,7 @@ export default function PTApp() {
         )}
         {tab === "tips" && <TipsTab />}
         {tab === "connect" && <ConnectTab />}
-        {tab === "coach" && <CoachTab coach={coach} messages={messages} onSend={handleSendMessage} onSignOut={signOut} />}
+        {tab === "coach" && <CoachTab coach={coach} messages={messages} onSend={handleSendMessage} onSignOut={signOut} onEnableNotifications={handleEnableNotifications} />}
       </div>
 
       {timer.active && (

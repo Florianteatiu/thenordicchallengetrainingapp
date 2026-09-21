@@ -8,3 +8,12 @@ createRoot(document.getElementById('root')).render(
     <App />
   </StrictMode>,
 )
+
+// Registered up front (not only when someone enables notifications) so the
+// worker is already active and ready by the time enablePushNotifications()
+// looks for it.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((e) => console.error('Service worker registration failed', e))
+  })
+}

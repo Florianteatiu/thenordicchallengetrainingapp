@@ -6,3 +6,9 @@ export async function fetchCoachById(id) {
   if (error) throw error;
   return data;
 }
+
+export async function updateCoach(id, patch) {
+  const { data, error } = await supabase.from("coaches").update(patch).eq("id", id).select().single();
+  if (error) throw error;
+  return data;
+}

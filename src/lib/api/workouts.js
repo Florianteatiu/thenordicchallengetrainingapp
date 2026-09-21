@@ -38,6 +38,21 @@ export async function fetchRecentLoggedSets(clientId, sinceDate) {
   return data;
 }
 
+// Same as fetchRecentLoggedSets, but with each set's exercise name embedded
+// (a client's sets can span several past programs, not just whichever one
+// is currently selected in the editor) — for the coach's per-exercise
+// activity breakdown.
+export async function fetchRecentLoggedSetsWithExercise(clientId, sinceDate) {
+  const { data, error } = await supabase
+    .from("logged_sets")
+    .select("*, exercises(name)")
+    .eq("client_id", clientId)
+    .gte("logged_at", sinceDate)
+    .order("logged_at", { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
 // Same, batched across several clients at once (for the coach's client list).
 export async function fetchRecentLoggedSetsForClients(clientIds, sinceDate) {
   if (clientIds.length === 0) return {};
