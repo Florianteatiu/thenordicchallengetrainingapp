@@ -17,6 +17,16 @@
 --      message-attachments), with policies scoped to the real
 --      coaches/clients tables.
 --
+-- It also now adds:
+--   3. A nullable `coach_id` column on `programs`, so a coach can build a
+--      reusable "template" program (client_id left null) before any client
+--      exists, then assign a copy of it to a client later. The existing
+--      coach-side policies on `programs` and `exercises` only reached a
+--      program through its client_id -> clients.coach_id chain, which can't
+--      resolve when client_id is null, so those two policies are replaced
+--      with equivalents keyed on the new coach_id column instead. The
+--      client-side "see my own program/exercises" policies are untouched.
+--
 -- Safe to re-run.
 -- ============================================================================
 
@@ -33,6 +43,35 @@ drop policy if exists "clients_see_own_coach" on public.coaches;
 create policy "clients_see_own_coach" on public.coaches
   for select
   using (id in (select coach_id from public.clients where id = auth.uid()));
+
+-- ----------------------------------------------------------------------------
+-- Program templates: coach_id on programs, so a program can exist before any
+-- client is assigned to it.
+-- ----------------------------------------------------------------------------
+
+alter table public.programs add column if not exists coach_id uuid references public.coaches(id) on delete cascade;
+
+-- Backfill coach_id on any existing (already-assigned) programs from their
+-- client's coach, so nothing already in use loses coach access.
+update public.programs p
+set coach_id = c.coach_id
+from public.clients c
+where p.client_id = c.id
+  and p.coach_id is null;
+
+drop policy if exists "coach manages client programs" on public.programs;
+drop policy if exists "coach_manages_own_programs" on public.programs;
+create policy "coach_manages_own_programs" on public.programs
+  for all
+  using (coach_id = auth.uid())
+  with check (coach_id = auth.uid());
+
+drop policy if exists "coach manages client exercises" on public.exercises;
+drop policy if exists "coach_manages_own_exercises" on public.exercises;
+create policy "coach_manages_own_exercises" on public.exercises
+  for all
+  using (exists (select 1 from public.programs p where p.id = exercises.program_id and p.coach_id = auth.uid()))
+  with check (exists (select 1 from public.programs p where p.id = exercises.program_id and p.coach_id = auth.uid()));
 
 -- ----------------------------------------------------------------------------
 -- Storage buckets

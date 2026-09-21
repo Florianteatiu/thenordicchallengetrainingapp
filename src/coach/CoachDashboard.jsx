@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Users, MessageCircle, Trophy, Search, Trash2, Plus, ChevronRight,
-  Image as ImageIcon, Send, Flame, Clock, LogOut,
+  Image as ImageIcon, Send, Flame, Clock, LogOut, LayoutTemplate,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { C, fontStack, ghostBtn, cardStyle, editInputStyle } from "../theme";
@@ -9,7 +9,9 @@ import logo from "../assets/logo.png";
 import { initialsFor } from "../lib/utils";
 import { fetchClientsForCoach } from "../lib/api/clients";
 import {
-  fetchProgramWithExercises, createProgram, updateProgramMeta, addExercise, updateExercise, deleteExercise,
+  fetchProgramWithExercises, fetchProgramById, createProgram, updateProgramMeta, deleteProgram,
+  addExercise, updateExercise, deleteExercise,
+  fetchTemplatesForCoach, createTemplate, assignTemplateToClient,
 } from "../lib/api/programs";
 import { fetchRecentLoggedSets, fetchRecentLoggedSetsForClients, fetchMoodCheckins, fetchMoodCheckinsForClients } from "../lib/api/workouts";
 import { fetchThread, fetchLatestMessagePerClient, sendMessage, subscribeToThread } from "../lib/api/messages";
@@ -41,6 +43,7 @@ function StatusPill({ status }) {
 function Sidebar({ view, onNavigate, unreadTotal, coachName, onSignOut }) {
   const items = [
     { id: "clients", label: "Clients", icon: Users },
+    { id: "templates", label: "Templates", icon: LayoutTemplate },
     { id: "messages", label: "Messages", icon: MessageCircle, badge: unreadTotal },
     { id: "challenge", label: "Challenge", icon: Trophy },
   ];
@@ -118,14 +121,34 @@ function ClientList({ clients, selectedId, onSelect }) {
 }
 
 // ---------- Program editor ----------
-function ProgramEditor({ program, onEditField, onEditAlternatives, onRemove, onAdd, onEditMeta, onCreate, creating }) {
+function ProgramEditor({ program, templates, onAssignTemplate, assigningTemplateId, onEditField, onEditAlternatives, onRemove, onAdd, onEditMeta, onCreate, creating }) {
   if (!program) {
     return (
       <div style={{ ...cardStyle, padding: 20, textAlign: "center" }}>
         <div style={{ fontSize: 13.5, color: C.textSecondary, marginBottom: 12 }}>This client doesn't have a program yet.</div>
         <button onClick={onCreate} disabled={creating} style={{ ...ghostBtn, margin: "0 auto" }}>
-          <Plus size={14} /> {creating ? "Creating..." : "Create program"}
+          <Plus size={14} /> {creating ? "Creating..." : "Create blank program"}
         </button>
+        {templates && templates.length > 0 && (
+          <div style={{ textAlign: "left", marginTop: 18 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.textSecondary, marginBottom: 8 }}>OR ASSIGN A TEMPLATE</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {templates.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => onAssignTemplate(t.id)}
+                  disabled={assigningTemplateId === t.id}
+                  style={{ ...ghostBtn, justifyContent: "space-between", width: "100%" }}
+                >
+                  <span>{t.title || "Untitled"}</span>
+                  <span style={{ color: C.textMuted, fontWeight: 600 }}>
+                    {assigningTemplateId === t.id ? "Assigning..." : `${t.exerciseCount} ex.`}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -250,7 +273,7 @@ function MessagesThread({ messages, onSend }) {
 }
 
 // ---------- Client detail ----------
-function ClientDetail({ client, program, programLoading, dailySummaries, activityLoading, messages, photos, onEditField, onEditAlternatives, onRemove, onAdd, onEditMeta, onCreateProgram, creatingProgram, onSendMessage }) {
+function ClientDetail({ client, program, programLoading, templates, onAssignTemplate, assigningTemplateId, dailySummaries, activityLoading, messages, photos, onEditField, onEditAlternatives, onRemove, onAdd, onEditMeta, onCreateProgram, creatingProgram, onSendMessage }) {
   const [tab, setTab] = useState("program");
   const tabs = [
     { id: "program", label: "Program" },
@@ -282,7 +305,7 @@ function ClientDetail({ client, program, programLoading, dailySummaries, activit
         {tab === "program" && (
           programLoading
             ? <div style={{ fontSize: 13, color: C.textSecondary }}>Loading...</div>
-            : <ProgramEditor program={program} onEditField={onEditField} onEditAlternatives={onEditAlternatives} onRemove={onRemove} onAdd={onAdd} onEditMeta={onEditMeta} onCreate={onCreateProgram} creating={creatingProgram} />
+            : <ProgramEditor program={program} templates={templates} onAssignTemplate={onAssignTemplate} assigningTemplateId={assigningTemplateId} onEditField={onEditField} onEditAlternatives={onEditAlternatives} onRemove={onRemove} onAdd={onAdd} onEditMeta={onEditMeta} onCreate={onCreateProgram} creating={creatingProgram} />
         )}
         {tab === "activity" && <ActivityLog dailySummaries={dailySummaries} loading={activityLoading} />}
         {tab === "messages" && <MessagesThread messages={messages} onSend={onSendMessage} />}
@@ -357,6 +380,53 @@ function ChallengeTracker({ clients, joinedIds, onToggleJoined }) {
   );
 }
 
+// ---------- Program templates ----------
+function TemplatesView({ templates, templatesLoading, activeTemplate, editorLoading, onSelectTemplate, onCreateTemplate, creating, onDeleteTemplate, onEditField, onEditAlternatives, onRemove, onAdd, onEditMeta }) {
+  return (
+    <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+      <div style={{ width: 260, flexShrink: 0, borderRight: `1px solid ${C.line}`, display: "flex", flexDirection: "column", background: "#fff" }}>
+        <div style={{ padding: "16px 14px 10px" }}>
+          <div style={{ fontSize: 17, fontWeight: 900, color: C.textPrimary, marginBottom: 10 }}>Program templates</div>
+          <button onClick={onCreateTemplate} disabled={creating} style={{ ...ghostBtn, width: "100%", justifyContent: "center" }}>
+            <Plus size={14} /> {creating ? "Creating..." : "New template"}
+          </button>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "4px 8px" }}>
+          {templatesLoading && <div style={{ fontSize: 12.5, color: C.textSecondary, padding: "12px 8px" }}>Loading...</div>}
+          {!templatesLoading && templates.length === 0 && <div style={{ fontSize: 12.5, color: C.textSecondary, padding: "12px 8px" }}>No templates yet.</div>}
+          {templates.map((t) => (
+            <button key={t.id} onClick={() => onSelectTemplate(t.id)} style={{
+              display: "flex", flexDirection: "column", alignItems: "flex-start", width: "100%", textAlign: "left",
+              padding: "10px 8px", borderRadius: 8, border: "none", cursor: "pointer", marginBottom: 2,
+              background: activeTemplate?.id === t.id ? C.paperMuted : "transparent",
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.textPrimary }}>{t.title || "Untitled"}</div>
+              <div style={{ fontSize: 11, color: C.textSecondary }}>{t.exerciseCount} exercise{t.exerciseCount === 1 ? "" : "s"}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", padding: "20px 28px" }}>
+        {!activeTemplate ? (
+          <div style={{ color: C.textSecondary, fontSize: 13.5 }}>Select a template to edit, or create a new one.</div>
+        ) : editorLoading ? (
+          <div style={{ color: C.textSecondary, fontSize: 13 }}>Loading...</div>
+        ) : (
+          <div style={{ maxWidth: 640 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+              <button onClick={() => onDeleteTemplate(activeTemplate.id)} style={{ ...ghostBtn, color: "#A6403C", background: "#F3E9E9" }}>
+                <Trash2 size={13} /> Delete template
+              </button>
+            </div>
+            <ProgramEditor program={activeTemplate} onEditField={onEditField} onEditAlternatives={onEditAlternatives} onRemove={onRemove} onAdd={onAdd} onEditMeta={onEditMeta} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ---------- Root dashboard ----------
 export default function CoachDashboard() {
   const { profile, signOut } = useAuth();
@@ -379,6 +449,13 @@ export default function CoachDashboard() {
   const [latestByClient, setLatestByClient] = useState({});
 
   const [photos, setPhotos] = useState([]);
+
+  const [templates, setTemplates] = useState([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [activeTemplate, setActiveTemplate] = useState(null);
+  const [templateEditorLoading, setTemplateEditorLoading] = useState(false);
+  const [creatingTemplate, setCreatingTemplate] = useState(false);
+  const [assigningTemplateId, setAssigningTemplateId] = useState(null);
 
   const sinceDate = useMemo(() => {
     const d = new Date();
@@ -418,6 +495,17 @@ export default function CoachDashboard() {
     loadClients();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coachId]);
+
+  const loadTemplates = useCallback(async () => {
+    setTemplatesLoading(true);
+    const rows = await fetchTemplatesForCoach(coachId);
+    setTemplates(rows);
+    setTemplatesLoading(false);
+  }, [coachId]);
+
+  useEffect(() => {
+    loadTemplates();
+  }, [loadTemplates]);
 
   const loadClientDetail = useCallback(async (clientId) => {
     setProgramLoading(true);
@@ -506,6 +594,7 @@ export default function CoachDashboard() {
     setCreatingProgram(true);
     try {
       const created = await createProgram({
+        coachId,
         clientId: selectedId,
         weekLabel: "Week 1 · Day 1",
         title: "New program",
@@ -515,6 +604,85 @@ export default function CoachDashboard() {
     } finally {
       setCreatingProgram(false);
     }
+  }
+
+  async function handleAssignTemplate(templateId) {
+    setAssigningTemplateId(templateId);
+    try {
+      const assigned = await assignTemplateToClient(templateId, selectedId);
+      setProgram(assigned);
+    } finally {
+      setAssigningTemplateId(null);
+    }
+  }
+
+  async function selectTemplate(id) {
+    setTemplateEditorLoading(true);
+    const full = await fetchProgramById(id);
+    setActiveTemplate(full);
+    setTemplateEditorLoading(false);
+  }
+
+  async function handleCreateTemplate() {
+    setCreatingTemplate(true);
+    try {
+      const created = await createTemplate({ coachId, weekLabel: "Week 1 · Day 1", title: "New template", durationMin: 45 });
+      setTemplates((prev) => [created, ...prev]);
+      setActiveTemplate(created);
+    } finally {
+      setCreatingTemplate(false);
+    }
+  }
+
+  function patchTemplateExerciseLocal(exId, patch) {
+    setActiveTemplate((prev) => ({ ...prev, exercises: prev.exercises.map((ex) => (ex.id === exId ? { ...ex, ...patch } : ex)) }));
+  }
+
+  async function editTemplateField(exId, field, value) {
+    patchTemplateExerciseLocal(exId, { [field]: value });
+    try {
+      await updateExercise(exId, { [field]: value });
+    } catch (e) {
+      console.error("Failed to save template exercise field", e);
+    }
+  }
+
+  function editTemplateAlternatives(exId, text) {
+    const list = text.split(",").map((s) => s.trim()).filter(Boolean);
+    editTemplateField(exId, "alternatives", list);
+  }
+
+  async function removeTemplateExercise(exId) {
+    setActiveTemplate((prev) => ({ ...prev, exercises: prev.exercises.filter((ex) => ex.id !== exId) }));
+    try {
+      await deleteExercise(exId);
+    } catch (e) {
+      console.error("Failed to delete template exercise", e);
+    }
+  }
+
+  async function addTemplateExercise() {
+    const sortOrder = activeTemplate.exercises.length;
+    const created = await addExercise(activeTemplate.id, sortOrder);
+    setActiveTemplate((prev) => ({ ...prev, exercises: [...prev.exercises, created] }));
+  }
+
+  async function editTemplateMeta(field, value) {
+    const templateId = activeTemplate.id;
+    setActiveTemplate((prev) => ({ ...prev, [field]: value }));
+    setTemplates((prev) => prev.map((t) => (t.id === templateId ? { ...t, [field]: value } : t)));
+    try {
+      await updateProgramMeta(templateId, { [field]: value });
+    } catch (e) {
+      console.error("Failed to save template field", e);
+    }
+  }
+
+  async function handleDeleteTemplate(id) {
+    if (!window.confirm("Delete this template? This can't be undone.")) return;
+    await deleteProgram(id);
+    setTemplates((prev) => prev.filter((t) => t.id !== id));
+    if (activeTemplate?.id === id) setActiveTemplate(null);
   }
 
   async function handleSendMessage(text) {
@@ -559,6 +727,9 @@ export default function CoachDashboard() {
                 client={selected}
                 program={program}
                 programLoading={programLoading}
+                templates={templates}
+                onAssignTemplate={handleAssignTemplate}
+                assigningTemplateId={assigningTemplateId}
                 dailySummaries={dailySummaries}
                 activityLoading={activityLoading}
                 messages={messages}
@@ -575,6 +746,24 @@ export default function CoachDashboard() {
             )}
           </>
         )
+      )}
+
+      {view === "templates" && (
+        <TemplatesView
+          templates={templates}
+          templatesLoading={templatesLoading}
+          activeTemplate={activeTemplate}
+          editorLoading={templateEditorLoading}
+          onSelectTemplate={selectTemplate}
+          onCreateTemplate={handleCreateTemplate}
+          creating={creatingTemplate}
+          onDeleteTemplate={handleDeleteTemplate}
+          onEditField={editTemplateField}
+          onEditAlternatives={editTemplateAlternatives}
+          onRemove={removeTemplateExercise}
+          onAdd={addTemplateExercise}
+          onEditMeta={editTemplateMeta}
+        />
       )}
 
       {view === "messages" && (
