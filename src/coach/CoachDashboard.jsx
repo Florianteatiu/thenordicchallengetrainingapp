@@ -381,7 +381,7 @@ function ChallengeTracker({ clients, joinedIds, onToggleJoined }) {
 }
 
 // ---------- Program templates ----------
-function TemplatesView({ templates, templatesLoading, activeTemplate, editorLoading, onSelectTemplate, onCreateTemplate, creating, onDeleteTemplate, onEditField, onEditAlternatives, onRemove, onAdd, onEditMeta }) {
+function TemplatesView({ templates, templatesLoading, templatesError, activeTemplate, editorLoading, onSelectTemplate, onCreateTemplate, creating, onDeleteTemplate, onEditField, onEditAlternatives, onRemove, onAdd, onEditMeta }) {
   return (
     <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
       <div style={{ width: 260, flexShrink: 0, borderRight: `1px solid ${C.line}`, display: "flex", flexDirection: "column", background: "#fff" }}>
@@ -390,6 +390,11 @@ function TemplatesView({ templates, templatesLoading, activeTemplate, editorLoad
           <button onClick={onCreateTemplate} disabled={creating} style={{ ...ghostBtn, width: "100%", justifyContent: "center" }}>
             <Plus size={14} /> {creating ? "Creating..." : "New template"}
           </button>
+          {templatesError && (
+            <div style={{ fontSize: 11.5, color: "#A6403C", background: "#F3E9E9", borderRadius: 6, padding: "8px 10px", marginTop: 8 }}>
+              {templatesError}
+            </div>
+          )}
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: "4px 8px" }}>
           {templatesLoading && <div style={{ fontSize: 12.5, color: C.textSecondary, padding: "12px 8px" }}>Loading...</div>}
@@ -452,6 +457,7 @@ export default function CoachDashboard() {
 
   const [templates, setTemplates] = useState([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [templatesError, setTemplatesError] = useState(null);
   const [activeTemplate, setActiveTemplate] = useState(null);
   const [templateEditorLoading, setTemplateEditorLoading] = useState(false);
   const [creatingTemplate, setCreatingTemplate] = useState(false);
@@ -498,9 +504,16 @@ export default function CoachDashboard() {
 
   const loadTemplates = useCallback(async () => {
     setTemplatesLoading(true);
-    const rows = await fetchTemplatesForCoach(coachId);
-    setTemplates(rows);
-    setTemplatesLoading(false);
+    setTemplatesError(null);
+    try {
+      const rows = await fetchTemplatesForCoach(coachId);
+      setTemplates(rows);
+    } catch (e) {
+      console.error("Failed to load templates", e);
+      setTemplatesError(e.message || "Failed to load templates.");
+    } finally {
+      setTemplatesLoading(false);
+    }
   }, [coachId]);
 
   useEffect(() => {
@@ -618,17 +631,28 @@ export default function CoachDashboard() {
 
   async function selectTemplate(id) {
     setTemplateEditorLoading(true);
-    const full = await fetchProgramById(id);
-    setActiveTemplate(full);
-    setTemplateEditorLoading(false);
+    setTemplatesError(null);
+    try {
+      const full = await fetchProgramById(id);
+      setActiveTemplate(full);
+    } catch (e) {
+      console.error("Failed to load template", e);
+      setTemplatesError(e.message || "Failed to load template.");
+    } finally {
+      setTemplateEditorLoading(false);
+    }
   }
 
   async function handleCreateTemplate() {
     setCreatingTemplate(true);
+    setTemplatesError(null);
     try {
       const created = await createTemplate({ coachId, weekLabel: "Week 1 · Day 1", title: "New template", durationMin: 45 });
       setTemplates((prev) => [created, ...prev]);
       setActiveTemplate(created);
+    } catch (e) {
+      console.error("Failed to create template", e);
+      setTemplatesError(e.message || "Failed to create template.");
     } finally {
       setCreatingTemplate(false);
     }
@@ -752,6 +776,7 @@ export default function CoachDashboard() {
         <TemplatesView
           templates={templates}
           templatesLoading={templatesLoading}
+          templatesError={templatesError}
           activeTemplate={activeTemplate}
           editorLoading={templateEditorLoading}
           onSelectTemplate={selectTemplate}
