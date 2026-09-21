@@ -1,20 +1,28 @@
 // ---------- Shared design tokens (brand language used across coach + client apps) ----------
+// The whole app is dark: `ink` is the near-black used for headers/sidebars,
+// `paper`/`paperMuted` are the (dark) surface colors everything else sits on.
 export const C = {
-  ink: "#0A0A0A",
+  ink: "#000000",
   inkLine: "rgba(255,255,255,0.12)",
-  paper: "#FFFFFF",
-  paperMuted: "#F4F3F1",
-  line: "#E7E5E2",
+  paper: "#161616",
+  paperMuted: "#242424",
+  line: "rgba(255,255,255,0.12)",
   textOnDark: "#FFFFFF",
   textOnDarkMuted: "#9C9A97",
-  textPrimary: "#0A0A0A",
-  textSecondary: "#5B5854",
-  textMuted: "#A6A4A0",
+  textPrimary: "#F5F4F2",
+  textSecondary: "#A8A6A2",
+  textMuted: "#7A7874",
   signal: "#FFE234",
-  signalSoft: "#FFF6B8",
-  signalText: "#6B5300",
-  success: "#2FA36B",
-  successSoft: "#E1F3E9",
+  signalSoft: "rgba(255,226,52,0.16)",
+  signalText: "#FFE234",
+  // Dark text/icon color for content placed directly on the (always-bright)
+  // yellow `signal` background — `textPrimary` is light-on-dark and would be
+  // unreadable there.
+  onSignal: "#161616",
+  success: "#4BC98A",
+  successSoft: "rgba(75,201,138,0.16)",
+  danger: "#E5726C",
+  dangerSoft: "rgba(229,114,108,0.16)",
 };
 
 export const fontStack = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif";
@@ -25,7 +33,7 @@ export const ghostBtn = {
   gap: 5,
   fontSize: 12.5,
   fontWeight: 700,
-  color: C.ink,
+  color: C.textPrimary,
   background: C.paperMuted,
   border: "none",
   borderRadius: 20,
@@ -33,7 +41,7 @@ export const ghostBtn = {
   cursor: "pointer",
 };
 
-export const cardStyle = { background: "#fff", border: `1px solid ${C.line}`, borderRadius: 10 };
+export const cardStyle = { background: C.paper, border: `1px solid ${C.line}`, borderRadius: 10 };
 
 export const smallDarkBtnStyle = {
   background: "rgba(255,255,255,0.14)",
@@ -57,6 +65,8 @@ export const inputStyle = {
   fontSize: 13.5,
   fontFamily: fontStack,
   boxSizing: "border-box",
+  background: C.paper,
+  color: C.textPrimary,
 };
 
 export const editInputStyle = {
@@ -67,5 +77,6 @@ export const editInputStyle = {
   fontSize: 12.5,
   fontFamily: fontStack,
   boxSizing: "border-box",
-  background: "#fff",
+  background: C.paper,
+  color: C.textPrimary,
 };

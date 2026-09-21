@@ -93,7 +93,7 @@ function vibrateDevice() {
 // ---------- Shared bits ----------
 function TabButton({ active, onClick, icon: Icon, label }) {
   return (
-    <button onClick={onClick} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "9px 0 7px", background: "none", border: "none", cursor: "pointer", color: active ? C.ink : "#A6A4A0" }}>
+    <button onClick={onClick} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "9px 0 7px", background: "none", border: "none", cursor: "pointer", color: active ? C.ink : C.textMuted }}>
       <Icon size={19} strokeWidth={active ? 2.4 : 1.8} />
       <span style={{ fontSize: 10.5, fontWeight: active ? 700 : 500 }}>{label}</span>
       <div style={{ width: 16, height: 2.5, borderRadius: 2, background: active ? C.signalText : "transparent", marginTop: 1 }} />
@@ -105,7 +105,7 @@ function Pill({ children, tone = "steel" }) {
   const map = {
     signal: [C.signalSoft, C.signalText],
     success: [C.successSoft, C.success],
-    steel: ["#EFEEEC", C.textSecondary],
+    steel: [C.paperMuted, C.textSecondary],
   };
   const [bg, fg] = map[tone];
   return <span style={{ display: "inline-block", fontSize: 11.5, fontWeight: 700, padding: "3px 9px", borderRadius: 20, background: bg, color: fg, letterSpacing: 0.2 }}>{children}</span>;
@@ -146,7 +146,7 @@ function CelebrationOverlay() {
   return (
     <div style={{ position: "absolute", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
       <div style={{ position: "relative", width: 140, height: 140, animation: "ptPop 2s ease forwards" }}>
-        <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "#fff", boxShadow: "0 8px 24px rgba(0,0,0,0.18)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: C.paper, boxShadow: "0 8px 24px rgba(0,0,0,0.18)", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <ThumbsUp size={56} color={C.signal} fill={C.signal} strokeWidth={1.5} />
         </div>
         {sparkPositions.map((pos, i) => (
@@ -167,7 +167,7 @@ function HistoryModal({ exercise, history, onClose }) {
   const gain = latest && first ? latest - first : 0;
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(10,10,10,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 70, padding: 20 }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 10, width: "100%", maxWidth: 360, padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: C.paper, borderRadius: 10, width: "100%", maxWidth: 360, padding: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
           <div>
             <div style={{ fontWeight: 800, fontSize: 15 }}>{exercise.name}</div>
@@ -212,7 +212,7 @@ function VideoModal({ exercise, onClose }) {
   if (!exercise) return null;
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(10,10,10,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 70, padding: 20 }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 10, width: "100%", maxWidth: 360, overflow: "hidden" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: C.paper, borderRadius: 10, width: "100%", maxWidth: 360, overflow: "hidden" }}>
         <div style={{ background: C.ink, aspectRatio: "16/10", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: C.textOnDarkMuted, gap: 8 }}>
           <Play size={34} color={C.signal} />
           <div style={{ fontSize: 12.5 }}>Demo video placeholder</div>
@@ -243,7 +243,7 @@ function SharePRModal({ pr, onClose }) {
   }
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(10,10,10,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 70, padding: 20 }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 10, width: "100%", maxWidth: 340, overflow: "hidden" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: C.paper, borderRadius: 10, width: "100%", maxWidth: 340, overflow: "hidden" }}>
         <div style={{ background: C.ink, padding: "26px 20px", textAlign: "center" }}>
           <Trophy size={30} color={C.signal} style={{ marginBottom: 8 }} />
           <div style={{ color: C.textOnDarkMuted, fontSize: 11.5, fontWeight: 700, letterSpacing: 0.5 }}>NEW PERSONAL RECORD</div>
@@ -266,7 +266,7 @@ function PhotoModal({ photo, onClose }) {
   if (!photo) return null;
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(10,10,10,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 70, padding: 20 }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 10, width: "100%", maxWidth: 340, overflow: "hidden" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: C.paper, borderRadius: 10, width: "100%", maxWidth: 340, overflow: "hidden" }}>
         <img src={photo.signedUrl} alt="progress" style={{ width: "100%", display: "block" }} />
         <div style={{ padding: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 12, color: C.textSecondary }}>{new Date(photo.taken_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
@@ -291,7 +291,7 @@ function ExerciseCard({ exercise, sets, swappedTo, prevBest, onSetChange, onTogg
       <div style={{ padding: "14px 16px 10px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div style={{ flex: 1 }}>
-            {swappedTo && <div style={{ fontSize: 11, color: "#A6A4A0", marginBottom: 2, textDecoration: "line-through" }}>{exercise.name}</div>}
+            {swappedTo && <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 2, textDecoration: "line-through" }}>{exercise.name}</div>}
             <div style={{ fontSize: 16.5, fontWeight: 800, color: C.textPrimary, letterSpacing: -0.2 }}>{displayName}</div>
             <div style={{ fontSize: 12.5, color: C.textSecondary, marginTop: 3 }}>{exercise.target_sets} sets · {exercise.target_reps} reps · target {exercise.target_weight_kg} kg</div>
           </div>
@@ -309,7 +309,7 @@ function ExerciseCard({ exercise, sets, swappedTo, prevBest, onSetChange, onTogg
         {swapOpen && (
           <div style={{ marginTop: 10, border: `1px solid ${C.line}`, borderRadius: 6, overflow: "hidden" }}>
             {(exercise.alternatives || []).map((alt) => (
-              <button key={alt} onClick={() => { onSwap(exercise.id, alt); setSwapOpen(false); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", background: "#fff", border: "none", borderBottom: `1px solid ${C.line}`, fontSize: 13.5, color: C.textPrimary, cursor: "pointer" }}>{alt}</button>
+              <button key={alt} onClick={() => { onSwap(exercise.id, alt); setSwapOpen(false); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", background: C.paper, border: "none", borderBottom: `1px solid ${C.line}`, fontSize: 13.5, color: C.textPrimary, cursor: "pointer" }}>{alt}</button>
             ))}
             {swappedTo && (
               <button onClick={() => { onSwap(exercise.id, null); setSwapOpen(false); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", background: C.paperMuted, border: "none", fontSize: 13.5, color: C.textSecondary, cursor: "pointer" }}>Revert to {exercise.name}</button>
@@ -322,7 +322,7 @@ function ExerciseCard({ exercise, sets, swappedTo, prevBest, onSetChange, onTogg
         <div style={{ padding: "0 16px 14px" }}>
           <div style={{ fontSize: 12, color: C.textSecondary, fontStyle: "italic", marginBottom: 10 }}>{exercise.cue}</div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "28px 1fr 1fr 40px", gap: 8, fontSize: 11, color: "#A6A4A0", fontWeight: 700, marginBottom: 6 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "28px 1fr 1fr 40px", gap: 8, fontSize: 11, color: C.textMuted, fontWeight: 700, marginBottom: 6 }}>
             <div>Set</div><div>Weight (kg)</div><div>Reps</div><div></div>
           </div>
 
@@ -334,7 +334,7 @@ function ExerciseCard({ exercise, sets, swappedTo, prevBest, onSetChange, onTogg
                   <div style={{ fontSize: 13, fontWeight: 700, color: C.textPrimary }}>{set.setNumber}</div>
                   <input type="number" value={set.weight ?? ""} onChange={(e) => onSetChange(exercise.id, i, "weight", e.target.value)} style={inputStyle} />
                   <input type="number" placeholder={exercise.target_reps} value={set.reps ?? ""} onChange={(e) => onSetChange(exercise.id, i, "reps", e.target.value)} style={inputStyle} />
-                  <button onClick={() => onToggleDone(exercise.id, i)} aria-label="Mark set complete" style={{ width: 32, height: 32, borderRadius: 6, border: `1.5px solid ${set.done ? C.success : C.line}`, background: set.done ? C.success : "#fff", color: set.done ? "#fff" : "#A6A4A0", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                  <button onClick={() => onToggleDone(exercise.id, i)} aria-label="Mark set complete" style={{ width: 32, height: 32, borderRadius: 6, border: `1.5px solid ${set.done ? C.success : C.line}`, background: set.done ? C.success : C.paper, color: set.done ? "#fff" : C.textMuted, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
                     <Check size={16} />
                   </button>
                 </div>
@@ -384,7 +384,7 @@ function CalendarHeatmap({ cells }) {
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 4 }}>
         {dayLabels.map((l, i) => (
-          <div key={i} style={{ textAlign: "center", fontSize: 9, fontWeight: 700, color: "#A6A4A0" }}>{l}</div>
+          <div key={i} style={{ textAlign: "center", fontSize: 9, fontWeight: 700, color: C.textMuted }}>{l}</div>
         ))}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 8 }}>
@@ -401,11 +401,11 @@ function CalendarHeatmap({ cells }) {
         </div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 8 }}>
-        <span style={{ fontSize: 9.5, color: "#A6A4A0" }}>Less</span>
+        <span style={{ fontSize: 9.5, color: C.textMuted }}>Less</span>
         {[0, 1, 2, 3].map((v) => (
           <div key={v} style={{ width: 10, height: 10, borderRadius: 2, background: shade(v) }} />
         ))}
-        <span style={{ fontSize: 9.5, color: "#A6A4A0" }}>More</span>
+        <span style={{ fontSize: 9.5, color: C.textMuted }}>More</span>
       </div>
     </div>
   );
@@ -513,7 +513,7 @@ function HomeTab({ clientName, clientPhoto, onChangePhoto, program, todayProgres
         <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4, marginBottom: 12 }}>
           {badges.length === 0 && <div style={{ fontSize: 12, color: C.textSecondary }}>Log a few workouts to start earning badges.</div>}
           {badges.map((b, i) => (
-            <div key={i} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6, background: "#fff", border: `1px solid ${C.line}`, borderRadius: 20, padding: "6px 12px" }}>
+            <div key={i} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 20, padding: "6px 12px" }}>
               <b.icon size={14} color={C.signalText} />
               <span style={{ fontSize: 11.5, fontWeight: 700, color: C.textPrimary, whiteSpace: "nowrap" }}>{b.label}</span>
             </div>
@@ -557,7 +557,7 @@ function HomeTab({ clientName, clientPhoto, onChangePhoto, program, todayProgres
         {program ? (
           <>
             <Pill tone="signal">{program.week_label}</Pill>
-            <div style={{ background: "#fff", border: `1px solid ${C.line}`, borderRadius: 10, padding: 16, marginTop: 10 }}>
+            <div style={{ background: C.paper, border: `1px solid ${C.line}`, borderRadius: 10, padding: 16, marginTop: 10 }}>
               <div style={{ fontSize: 19, fontWeight: 900, color: C.textPrimary, letterSpacing: -0.3 }}>{program.title}</div>
               <div style={{ display: "flex", gap: 16, marginTop: 10 }}>
                 <div>
@@ -573,7 +573,7 @@ function HomeTab({ clientName, clientPhoto, onChangePhoto, program, todayProgres
                   <div style={{ fontSize: 10.5, color: C.textSecondary, fontWeight: 600 }}>sets logged</div>
                 </div>
               </div>
-              <button onClick={onStart} style={{ marginTop: 14, width: "100%", background: C.signal, color: C.textPrimary, border: "none", borderRadius: 8, padding: "12px 0", fontSize: 14.5, fontWeight: 800, cursor: "pointer" }}>
+              <button onClick={onStart} style={{ marginTop: 14, width: "100%", background: C.signal, color: C.onSignal, border: "none", borderRadius: 8, padding: "12px 0", fontSize: 14.5, fontWeight: 800, cursor: "pointer" }}>
                 {doneSets > 0 ? "Continue workout" : "Start workout"}
               </button>
             </div>
@@ -584,11 +584,11 @@ function HomeTab({ clientName, clientPhoto, onChangePhoto, program, todayProgres
           </div>
         )}
 
-        <div style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `3px solid ${C.signal}`, borderRadius: 4, padding: 14, marginTop: 14 }}>
+        <div style={{ background: C.paper, border: `1px solid ${C.line}`, borderLeft: `3px solid ${C.signal}`, borderRadius: 4, padding: 14, marginTop: 14 }}>
           <div style={{ fontSize: 11.5, fontWeight: 700, color: C.signalText, letterSpacing: 0.4, marginBottom: 3 }}>THIS MONTH'S CHALLENGE</div>
           <div style={{ fontWeight: 800, fontSize: 14.5, color: C.textPrimary }}>{challenge.label} <span style={{ color: C.textSecondary, fontWeight: 600 }}>· {challenge.date}</span></div>
           <div style={{ fontSize: 12, color: C.textSecondary, marginTop: 2, marginBottom: 10 }}>{challenge.note} — join in with Florian.</div>
-          <button onClick={onToggleJoined} style={{ background: joinedChallenge ? C.successSoft : C.signal, color: joinedChallenge ? C.success : C.textPrimary, border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
+          <button onClick={onToggleJoined} style={{ background: joinedChallenge ? C.successSoft : C.signal, color: joinedChallenge ? C.success : C.onSignal, border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
             {joinedChallenge ? "You're in ✓" : "I'm in"}
           </button>
         </div>
@@ -675,7 +675,7 @@ function TipsTab() {
         const open = openIdx === i;
         return (
           <div key={t.pattern} style={{ border: `1px solid ${C.line}`, borderRadius: 8, marginBottom: 10, overflow: "hidden" }}>
-            <button onClick={() => setOpenIdx(open ? -1 : i)} style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: "#fff", border: "none", cursor: "pointer" }}>
+            <button onClick={() => setOpenIdx(open ? -1 : i)} style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: C.paper, border: "none", cursor: "pointer" }}>
               <span style={{ fontSize: 14.5, fontWeight: 800, color: C.textPrimary }}>{t.pattern}</span>
               {open ? <ChevronUp size={16} color={C.textSecondary} /> : <ChevronDown size={16} color={C.textSecondary} />}
             </button>
@@ -686,7 +686,7 @@ function TipsTab() {
                   <div style={{ fontSize: 13, color: C.textPrimary }}>{t.do}</div>
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#F3E9E9", color: "#A6403C", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}><X size={12} /></div>
+                  <div style={{ width: 20, height: 20, borderRadius: "50%", background: C.dangerSoft, color: C.danger, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}><X size={12} /></div>
                   <div style={{ fontSize: 13, color: C.textPrimary }}>{t.avoid}</div>
                 </div>
               </div>
@@ -714,26 +714,26 @@ function ConnectTab() {
         </div>
       </div>
 
-      <div style={{ fontSize: 12.5, fontWeight: 700, color: "#A6A4A0", marginBottom: 8 }}>FOLLOW</div>
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 8 }}>FOLLOW</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
         {socialLinks.map((l) => (
-          <a key={l.label} href={l.href} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", background: "#fff", border: `1px solid ${C.line}`, borderRadius: 8, padding: "10px 12px" }}>
+          <a key={l.label} href={l.href} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", background: C.paper, border: `1px solid ${C.line}`, borderRadius: 8, padding: "10px 12px" }}>
             <l.icon size={16} color={C.signalText} />
             <span style={{ fontSize: 13.5, fontWeight: 700, color: C.textPrimary }}>{l.label}</span>
           </a>
         ))}
       </div>
 
-      <div style={{ fontSize: 12.5, fontWeight: 700, color: "#A6A4A0", marginBottom: 8 }}>NEXT ADVENTURE</div>
-      <div style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `3px solid ${C.signal}`, borderRadius: 4, padding: 14, marginBottom: 16 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 8 }}>NEXT ADVENTURE</div>
+      <div style={{ background: C.paper, border: `1px solid ${C.line}`, borderLeft: `3px solid ${C.signal}`, borderRadius: 4, padding: 14, marginBottom: 16 }}>
         <div style={{ fontWeight: 800, fontSize: 14.5, marginBottom: 3 }}>Season 2 — The Nordic Challenge</div>
         <div style={{ fontSize: 12.5, color: C.textSecondary }}>A 2,400 km relay across Sweden, never done before. June 2027.</div>
       </div>
 
-      <div style={{ fontSize: 12.5, fontWeight: 700, color: "#A6A4A0", marginBottom: 8 }}>UPCOMING IN GOTHENBURG</div>
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 8 }}>UPCOMING IN GOTHENBURG</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {upcomingEvents.map((e) => (
-          <div key={e.label} style={{ display: "flex", gap: 10, alignItems: "flex-start", background: "#fff", border: `1px solid ${C.line}`, borderRadius: 8, padding: "10px 12px" }}>
+          <div key={e.label} style={{ display: "flex", gap: 10, alignItems: "flex-start", background: C.paper, border: `1px solid ${C.line}`, borderRadius: 8, padding: "10px 12px" }}>
             <MapPin size={15} color={C.signalText} style={{ marginTop: 2, flexShrink: 0 }} />
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: C.textPrimary }}>{e.label} <span style={{ color: C.textSecondary, fontWeight: 600 }}>· {e.date}</span></div>
@@ -777,7 +777,7 @@ function CoachTab({ coach, messages, onSend, onSignOut }) {
         </button>
       </div>
 
-      <div style={{ background: "#fff", border: `1px solid ${C.line}`, borderRadius: 8, padding: 14, display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+      <div style={{ background: C.paper, border: `1px solid ${C.line}`, borderRadius: 8, padding: 14, display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
         <div style={{ width: 44, height: 44, borderRadius: "50%", background: C.ink, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <img src={logo} alt="" style={{ width: 30, height: 30 }} />
         </div>
@@ -794,7 +794,7 @@ function CoachTab({ coach, messages, onSend, onSignOut }) {
         <a href={`mailto:${coach?.email || ""}?subject=Question about my program`} style={{ ...ghostBtn, flex: 1, justifyContent: "center", textDecoration: "none" }}><Mail size={14} /> Email</a>
       </div>
 
-      <div style={{ fontSize: 12.5, fontWeight: 700, color: "#A6A4A0", marginBottom: 8 }}>MESSAGES</div>
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: C.textMuted, marginBottom: 8 }}>MESSAGES</div>
 
       <div style={{ flex: 1, minHeight: 160, maxHeight: 230, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
         {messages.length === 0 && <div style={{ fontSize: 12.5, color: C.textSecondary }}>No messages yet — say hi!</div>}
@@ -824,7 +824,7 @@ function CoachTab({ coach, messages, onSend, onSignOut }) {
           <Paperclip size={16} />
         </button>
         <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={`Message ${coach?.name?.split(" ")[0] || "your coach"}...`} style={{ ...inputStyle, flex: 1 }} onKeyDown={(e) => { if (e.key === "Enter") send(); }} />
-        <button onClick={send} style={{ width: 40, height: 40, borderRadius: 8, background: C.signal, border: "none", color: C.textPrimary, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }} aria-label="Send message">
+        <button onClick={send} style={{ width: 40, height: 40, borderRadius: 8, background: C.signal, border: "none", color: C.onSignal, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }} aria-label="Send message">
           <Send size={16} />
         </button>
       </div>
@@ -1147,7 +1147,7 @@ export default function PTApp() {
         <RestTimerBar seconds={timer.seconds} running={timer.running} onPause={actions.onPauseTimer} onResume={actions.onResumeTimer} onSkip={actions.onSkipTimer} onAdd15={actions.onAdd15} />
       )}
 
-      <div style={{ display: "flex", borderTop: `1px solid ${C.line}`, background: "#fff" }}>
+      <div style={{ display: "flex", borderTop: `1px solid ${C.line}`, background: C.paper }}>
         <TabButton active={tab === "home"} onClick={() => setTab("home")} icon={HomeIcon} label="Home" />
         <TabButton active={tab === "workout"} onClick={() => setTab("workout")} icon={Dumbbell} label="Workout" />
         <TabButton active={tab === "tips"} onClick={() => setTab("tips")} icon={Lightbulb} label="Tips" />

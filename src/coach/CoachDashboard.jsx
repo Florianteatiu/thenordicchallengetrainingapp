@@ -34,7 +34,7 @@ function StatusPill({ status }) {
   const map = {
     Completed: [C.successSoft, C.success],
     "In progress": [C.signalSoft, C.signalText],
-    "Not started": ["#EFEEEC", C.textSecondary],
+    "Not started": [C.paperMuted, C.textSecondary],
   };
   const [bg, fg] = map[status] || map["Not started"];
   return <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 20, background: bg, color: fg }}>{status}</span>;
@@ -66,7 +66,7 @@ function Sidebar({ view, onNavigate, unreadTotal, coachName, onSignOut }) {
         }}>
           <it.icon size={16} />
           <span style={{ fontSize: 13.5, fontWeight: 700, flex: 1 }}>{it.label}</span>
-          {!!it.badge && <span style={{ background: C.signal, color: C.textPrimary, fontSize: 10.5, fontWeight: 800, borderRadius: 10, padding: "1px 6px" }}>{it.badge}</span>}
+          {!!it.badge && <span style={{ background: C.signal, color: C.onSignal, fontSize: 10.5, fontWeight: 800, borderRadius: 10, padding: "1px 6px" }}>{it.badge}</span>}
         </button>
       ))}
       <div style={{ flex: 1 }} />
@@ -86,7 +86,7 @@ function ClientList({ clients, selectedId, onSelect }) {
   const [query, setQuery] = useState("");
   const filtered = clients.filter((c) => c.name.toLowerCase().includes(query.toLowerCase()));
   return (
-    <div style={{ width: 260, flexShrink: 0, borderRight: `1px solid ${C.line}`, display: "flex", flexDirection: "column", background: "#fff" }}>
+    <div style={{ width: 260, flexShrink: 0, borderRight: `1px solid ${C.line}`, display: "flex", flexDirection: "column", background: C.paper }}>
       <div style={{ padding: "16px 14px 10px" }}>
         <div style={{ fontSize: 17, fontWeight: 900, color: C.textPrimary, marginBottom: 10 }}>Clients</div>
         <div style={{ position: "relative" }}>
@@ -194,7 +194,7 @@ function ProgramEditor({ program, onEditField, onEditAlternatives, onRemove, onA
               <label style={{ fontSize: 10, color: C.textMuted, fontWeight: 700 }}>Rest (s)</label>
               <input type="number" value={ex.rest_seconds || 0} onChange={(e) => onEditField(ex.id, "rest_seconds", Number(e.target.value))} style={editInputStyle} />
             </div>
-            <button onClick={() => onRemove(ex.id)} style={{ height: 32, width: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "#F3E9E9", color: "#A6403C", border: "none", borderRadius: 6, cursor: "pointer" }}>
+            <button onClick={() => onRemove(ex.id)} style={{ height: 32, width: 32, display: "flex", alignItems: "center", justifyContent: "center", background: C.dangerSoft, color: C.danger, border: "none", borderRadius: 6, cursor: "pointer" }}>
               <Trash2 size={14} />
             </button>
           </div>
@@ -263,7 +263,7 @@ function MessagesThread({ messages, onSend }) {
       </div>
       <div style={{ display: "flex", gap: 8 }}>
         <input value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} placeholder="Reply..." style={{ ...editInputStyle, flex: 1 }} />
-        <button onClick={send} style={{ width: 36, height: 36, borderRadius: 8, background: C.signal, border: "none", color: C.textPrimary, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+        <button onClick={send} style={{ width: 36, height: 36, borderRadius: 8, background: C.signal, border: "none", color: C.onSignal, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
           <Send size={15} />
         </button>
       </div>
@@ -370,7 +370,7 @@ function ClientDetail({ client, program, programLoading, clientPrograms, onSelec
                 {program && !program.is_active && (
                   <div style={{ ...cardStyle, padding: "10px 14px", marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, background: C.signalSoft, border: "none" }}>
                     <span style={{ fontSize: 12.5, color: C.signalText, fontWeight: 700 }}>This isn't the program {client.name.split(" ")[0]} currently sees.</span>
-                    <button onClick={() => onSetActiveProgram(program.id)} style={{ ...ghostBtn, background: "#fff", flexShrink: 0 }}>Set as current</button>
+                    <button onClick={() => onSetActiveProgram(program.id)} style={{ ...ghostBtn, background: C.paper, flexShrink: 0 }}>Set as current</button>
                   </div>
                 )}
                 <ProgramEditor program={program} onEditField={onEditField} onEditAlternatives={onEditAlternatives} onRemove={onRemove} onAdd={onAdd} onEditMeta={onEditMeta} />
@@ -438,7 +438,7 @@ function ChallengeTracker({ clients, onToggleJoined }) {
             <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: C.textPrimary }}>{c.name}</div>
             <button onClick={() => onToggleJoined(c.id, !c.joined_challenge)} style={{
               fontSize: 11.5, fontWeight: 700, padding: "5px 11px", borderRadius: 20, border: "none", cursor: "pointer",
-              background: c.joined_challenge ? C.successSoft : "#EFEEEC", color: c.joined_challenge ? C.success : C.textSecondary,
+              background: c.joined_challenge ? C.successSoft : C.paperMuted, color: c.joined_challenge ? C.success : C.textSecondary,
             }}>
               {c.joined_challenge ? "Joined ✓" : "Not joined"}
             </button>
@@ -453,14 +453,14 @@ function ChallengeTracker({ clients, onToggleJoined }) {
 function TemplatesView({ templates, templatesLoading, templatesError, activeTemplate, editorLoading, onSelectTemplate, onCreateTemplate, creating, onDeleteTemplate, onEditField, onEditAlternatives, onRemove, onAdd, onEditMeta }) {
   return (
     <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-      <div style={{ width: 260, flexShrink: 0, borderRight: `1px solid ${C.line}`, display: "flex", flexDirection: "column", background: "#fff" }}>
+      <div style={{ width: 260, flexShrink: 0, borderRight: `1px solid ${C.line}`, display: "flex", flexDirection: "column", background: C.paper }}>
         <div style={{ padding: "16px 14px 10px" }}>
           <div style={{ fontSize: 17, fontWeight: 900, color: C.textPrimary, marginBottom: 10 }}>Program templates</div>
           <button onClick={onCreateTemplate} disabled={creating} style={{ ...ghostBtn, width: "100%", justifyContent: "center" }}>
             <Plus size={14} /> {creating ? "Creating..." : "New template"}
           </button>
           {templatesError && (
-            <div style={{ fontSize: 11.5, color: "#A6403C", background: "#F3E9E9", borderRadius: 6, padding: "8px 10px", marginTop: 8 }}>
+            <div style={{ fontSize: 11.5, color: C.danger, background: C.dangerSoft, borderRadius: 6, padding: "8px 10px", marginTop: 8 }}>
               {templatesError}
             </div>
           )}
@@ -489,7 +489,7 @@ function TemplatesView({ templates, templatesLoading, templatesError, activeTemp
         ) : (
           <div style={{ maxWidth: 640 }}>
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
-              <button onClick={() => onDeleteTemplate(activeTemplate.id)} style={{ ...ghostBtn, color: "#A6403C", background: "#F3E9E9" }}>
+              <button onClick={() => onDeleteTemplate(activeTemplate.id)} style={{ ...ghostBtn, color: C.danger, background: C.dangerSoft }}>
                 <Trash2 size={13} /> Delete template
               </button>
             </div>

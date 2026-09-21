@@ -50,7 +50,7 @@ export default function AuthPage() {
         padding: 20,
       }}
     >
-      <div style={{ width: "100%", maxWidth: 380, background: "#fff", border: `1px solid ${C.line}`, borderRadius: 14, padding: 28 }}>
+      <div style={{ width: "100%", maxWidth: 380, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 14, padding: 28 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 22 }}>
           <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.ink, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <img src={logo} alt="" style={{ width: 24, height: 24 }} />
@@ -139,7 +139,7 @@ export default function AuthPage() {
             </button>
           )}
 
-          {error && <div style={{ fontSize: 12.5, color: "#A6403C", background: "#F3E9E9", borderRadius: 6, padding: "8px 10px" }}>{error}</div>}
+          {error && <div style={{ fontSize: 12.5, color: C.danger, background: C.dangerSoft, borderRadius: 6, padding: "8px 10px" }}>{error}</div>}
           {info && <div style={{ fontSize: 12.5, color: C.success, background: C.successSoft, borderRadius: 6, padding: "8px 10px" }}>{info}</div>}
 
           <button
@@ -148,7 +148,7 @@ export default function AuthPage() {
             style={{
               marginTop: 4,
               background: C.signal,
-              color: C.textPrimary,
+              color: C.onSignal,
               border: "none",
               borderRadius: 8,
               padding: "11px 0",
