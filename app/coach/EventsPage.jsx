@@ -101,7 +101,7 @@ function EventModal({ event, onClose, onSaved, onDeleted }) {
         </label>
         <label className="field">
           <span>Link (optional)</span>
-          <input className="input" value={form.url ?? ""} onChange={(e) => set({ url: e.target.value })} placeholder="e.g. tickets or the page on nordicchallenge.se" />
+          <input className="input" value={form.url ?? ""} onChange={(e) => set({ url: e.target.value })} placeholder="e.g. tickets or the page on thenordicchallenge.se" />
         </label>
         <ErrorBox error={error} />
       </div>
