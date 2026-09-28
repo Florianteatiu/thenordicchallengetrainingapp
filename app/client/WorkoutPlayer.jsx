@@ -105,7 +105,7 @@ const HEADS = {
 
 // ---------- Exercise within a straight-sets block ----------
 
-function ExerciseSets({ item, sets, last, isPR, extra, onAddSet, onToggle, onUpdate }) {
+export function ExerciseSets({ item, sets, last, isPR, extra, onAddSet, onToggle, onUpdate }) {
   const [showCues, setShowCues] = useState(false);
   const ex = item.exercise ?? {};
   const tracking = ex.tracking ?? "weight_reps";
@@ -186,7 +186,7 @@ function ExerciseSets({ item, sets, last, isPR, extra, onAddSet, onToggle, onUpd
 
 // ---------- Result form for a timed block ----------
 
-function BlockResult({ block, logged, prefill, onSave }) {
+export function BlockResult({ block, logged, prefill, onSave }) {
   const [rounds, setRounds] = useState(logged?.rounds ?? prefill?.rounds ?? "");
   const [extra, setExtra] = useState(logged?.extra_reps ?? "");
   const [time, setTime] = useState(logged?.duration_sec != null ? formatClock(logged.duration_sec) : prefill?.duration_sec ? formatClock(prefill.duration_sec) : "");
@@ -234,7 +234,7 @@ function BlockResult({ block, logged, prefill, onSave }) {
 
 // ---------- Rest timer bar ----------
 
-function RestBar({ rest, onDone, onAdd }) {
+export function RestBar({ rest, onDone, onAdd }) {
   const [now, setNow] = useState(Date.now());
   const fired = useRef(false);
   useEffect(() => {

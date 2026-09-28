@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useAuth } from "./auth/AuthProvider";
 import AuthPage, { SetNewPassword } from "./auth/AuthPage";
 import { ErrorBox, PageLoader } from "./components/ui";
@@ -26,8 +26,14 @@ import ChatPage from "./client/ChatPage";
 import CheckinPage from "./client/CheckinPage";
 import WelcomeFlow from "./client/WelcomeFlow";
 
+import PtLayout from "./pt/PtLayout";
+import PtClientsPage from "./pt/PtClientsPage";
+import PtClientPage from "./pt/PtClientPage";
+import PtSessionPage from "./pt/PtSessionPage";
+
 export default function App() {
   const { session, profile, loading, profileError, recovering, signOut } = useAuth();
+  const inPtApp = useLocation().pathname.startsWith("/pt");
 
   if (loading) return <PageLoader />;
   if (recovering) return <SetNewPassword />;
@@ -41,6 +47,32 @@ export default function App() {
         </button>
       </div>
     );
+
+  // Nordic PT: the separate in-person coaching app at /pt (coach only).
+  if (inPtApp) {
+    if (profile.role !== "coach")
+      return (
+        <div className="client-page center" style={{ maxWidth: 480, margin: "40px auto" }}>
+          <div className="h2">This app is for your coach</div>
+          <a href="/app" className="btn btn-primary mt-16">
+            Go to my training
+          </a>
+        </div>
+      );
+    return (
+      <Routes>
+        <Route path="/pt/sessions/:id" element={<PtSessionPage />} />
+        <Route path="/pt" element={<PtLayout />}>
+          <Route index element={<PtClientsPage />} />
+          <Route path="clients/:id" element={<PtClientPage />} />
+          <Route path="workouts" element={<WorkoutsPage />} />
+          <Route path="workouts/:id" element={<WorkoutBuilderPage />} />
+          <Route path="library" element={<LibraryPage />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/pt" replace />} />
+      </Routes>
+    );
+  }
 
   if (profile.role === "coach") {
     return (

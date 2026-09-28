@@ -79,8 +79,9 @@ function Chart({ points }) {
   );
 }
 
-export default function LiftProgress({ clientId }) {
-  const { data, loading, error, reload } = useAsync(() => listWeightedSets(clientId), [clientId]);
+// `load` swaps in another source of sets (the in-person app passes its own).
+export default function LiftProgress({ clientId, load = listWeightedSets }) {
+  const { data, loading, error, reload } = useAsync(() => load(clientId), [clientId, load]);
   const lifts = useMemo(() => (data ? summarize(data) : []), [data]);
   const [selected, setSelected] = useState(null);
 

@@ -13,6 +13,12 @@ and sees who trained, who missed, and how it felt.
   last-time numbers, PR detection, rest timer, full-screen interval timer,
   finish check-in (feeling, RPE, note) and celebration; progress history.
 
+- **Nordic PT** (`/pt`, its own home-screen app with a yellow icon): Florian's
+  in-person clients (no login needed), live session logging on his phone
+  (start from a template, repeat the last session, or empty; last-time numbers,
+  PRs, add exercises on the spot), dated notes with pinning, lift charts.
+  Shares the exercise library and workout templates with the online app.
+
 ## Stack
 
 Vite + React (in `app/`), Supabase (auth, Postgres with row level security,

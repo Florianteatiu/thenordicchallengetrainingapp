@@ -520,6 +520,25 @@ img { display: block; }
 .event-row { display: flex; align-items: flex-start; gap: 12px; width: 100%; font: inherit; color: inherit; }
 button.event-row { cursor: pointer; }
 
+/* ---------- Nordic PT (in-person app) ---------- */
+.pt-shell { max-width: 760px; margin: 0 auto; min-height: 100vh; padding-bottom: calc(84px + var(--safe-bottom)); }
+.pt-top {
+  position: sticky; top: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: calc(10px + var(--safe-top)) 16px 10px; background: rgba(0, 0, 0, 0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line);
+}
+.pt-main { padding: 18px 16px 24px; }
+.date-badge {
+  width: 46px; flex-shrink: 0; text-align: center; border-radius: 10px; background: var(--surface-2); padding: 5px 0 4px; color: var(--text-2);
+}
+.date-badge .display { font-size: 22px; color: var(--text); }
+.note-pinned { border-color: rgba(255, 226, 52, 0.35); background: var(--yellow-soft); }
+.rpe-row { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
+.rpe-row button {
+  padding: 9px 0; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text-2);
+  font-weight: 800; font-size: 14px; cursor: pointer;
+}
+.rpe-row button.active { background: var(--yellow); color: var(--on-yellow); border-color: var(--yellow); }
+
 /* iPhone zooms the whole page in when you tap a text field smaller than 16px,
    and an installed home-screen app never zooms back out, which pushes the top
    menu off screen. 16px on touch screens prevents that zoom. */

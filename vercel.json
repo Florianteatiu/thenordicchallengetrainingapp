@@ -1,3 +1,7 @@
 {
-  "rewrites": [{ "source": "/((?!assets/|icons/|companion/|sw.js|manifest.webmanifest).*)", "destination": "/index.html" }]
+  "rewrites": [
+    { "source": "/pt", "destination": "/pt/index.html" },
+    { "source": "/pt/:path*", "destination": "/pt/index.html" },
+    { "source": "/((?!assets/|icons/|companion/|sw.js|manifest.webmanifest|manifest-pt.webmanifest).*)", "destination": "/index.html" }
+  ]
 }
