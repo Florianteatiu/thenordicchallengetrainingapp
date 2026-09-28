@@ -1,0 +1,55 @@
+-- Starter exercise library. Edit, add or delete freely from the Library page;
+-- re-running this never duplicates anything.
+insert into public.exercises (name, category, tracking, cues) values
+  -- strength
+  ('Back squat', 'strength', 'weight_reps', 'Brace before you descend. Knees track over toes. Drive the floor away.'),
+  ('Front squat', 'strength', 'weight_reps', 'Elbows high, chest proud. Sit between your heels.'),
+  ('Goblet squat', 'strength', 'weight_reps', 'Hold the weight at the chest, elbows inside the knees at the bottom.'),
+  ('Bulgarian split squat', 'strength', 'weight_reps', 'Front foot far enough forward that the heel stays down. Control the way down.'),
+  ('Walking lunge', 'strength', 'weight_reps', 'Long stride, back knee kisses the floor, stay tall.'),
+  ('Deadlift', 'strength', 'weight_reps', 'Bar over mid-foot, lats tight, push the floor away. Lock out with glutes, not your lower back.'),
+  ('Romanian deadlift', 'strength', 'weight_reps', 'Soft knees, hips back, bar close to the legs. Stop when the hamstrings stop you.'),
+  ('Hip thrust', 'strength', 'weight_reps', 'Chin tucked, ribs down, squeeze the glutes at the top for a second.'),
+  ('Bench press', 'strength', 'weight_reps', 'Shoulder blades pinned, feet planted, bar to lower chest.'),
+  ('Dumbbell bench press', 'strength', 'weight_reps', 'Elbows about 45 degrees from the body, full range, controlled.'),
+  ('Overhead press', 'strength', 'weight_reps', 'Squeeze glutes, ribs down, head through the window at the top.'),
+  ('Push-up', 'strength', 'reps', 'Body in one line from head to heels. Chest to the floor.'),
+  ('Pull-up', 'strength', 'reps', 'Start from a dead hang, pull elbows to your pockets, chin over the bar.'),
+  ('Lat pulldown', 'strength', 'weight_reps', 'Lean back slightly, pull to the upper chest, control the return.'),
+  ('Bent-over row', 'strength', 'weight_reps', 'Flat back, pull to the belly button, pause at the top.'),
+  ('Single-arm dumbbell row', 'strength', 'weight_reps', 'Hips square, pull the elbow toward the hip.'),
+  ('Kettlebell swing', 'strength', 'weight_reps', 'It''s a hinge, not a squat. Snap the hips, arms are just ropes.'),
+  ('Farmer carry', 'strength', 'distance_time', 'Tall posture, shoulders packed, short quick steps.'),
+  -- core
+  ('Plank', 'core', 'time', 'Squeeze glutes and quads, push the floor away, breathe.'),
+  ('Side plank', 'core', 'time', 'Hips high, body in a straight line. Per side.'),
+  ('Dead bug', 'core', 'reps', 'Lower back glued to the floor. Slow and controlled.'),
+  ('Hanging knee raise', 'core', 'reps', 'No swinging. Curl the pelvis up, not just the knees.'),
+  ('Pallof press', 'core', 'reps', 'Resist the rotation. Press out, hold, return. Per side.'),
+  -- conditioning
+  ('Burpee', 'conditioning', 'reps', 'Chest to floor, jump and clap overhead. Keep a rhythm you can hold.'),
+  ('Box jump', 'conditioning', 'reps', 'Land soft and quiet, stand tall on top, step down.'),
+  ('Jump squat', 'conditioning', 'reps', 'Load the hips, explode up, land softly.'),
+  ('Mountain climber', 'conditioning', 'time', 'Hips level with shoulders, drive knees fast.'),
+  ('Wall ball', 'conditioning', 'reps', 'Full squat, use the legs to throw, catch and go straight down.'),
+  ('Battle ropes', 'conditioning', 'time', 'Athletic stance, fast alternating waves, keep breathing.'),
+  ('Assault bike', 'conditioning', 'time', 'Push and pull with the arms, drive with the legs.'),
+  ('Rowing machine', 'conditioning', 'distance_time', 'Legs, body, arms, then arms, body, legs on the way back.'),
+  ('Ski erg', 'conditioning', 'distance_time', 'Hinge and crunch down, arms finish by the hips.'),
+  ('Sled push', 'conditioning', 'distance_time', 'Low body angle, drive through the balls of the feet.'),
+  -- endurance
+  ('Run', 'endurance', 'distance_time', 'Relaxed shoulders, quick light steps. Easy means you can talk.'),
+  ('Interval run', 'endurance', 'distance_time', 'Hard but controlled. Same pace on the last rep as the first.'),
+  ('Cycling', 'endurance', 'distance_time', 'Steady cadence around 85–95 rpm.'),
+  ('Swim', 'endurance', 'distance_time', 'Long body, exhale fully underwater, relaxed kick.'),
+  ('Brisk walk', 'endurance', 'distance_time', 'Arms swinging, fast enough to breathe a bit harder.'),
+  -- mobility
+  ('World''s greatest stretch', 'mobility', 'reps', 'Lunge, elbow to instep, rotate and reach to the ceiling. Per side.'),
+  ('90/90 hip switch', 'mobility', 'reps', 'Sit tall, rotate the knees side to side without using the hands.'),
+  ('Cat-cow', 'mobility', 'reps', 'Move one vertebra at a time. Breathe with the movement.'),
+  ('Couch stretch', 'mobility', 'time', 'Squeeze the glute of the back leg, stay tall. Per side.'),
+  ('Thoracic rotation', 'mobility', 'reps', 'On all fours, hand behind the head, open the chest to the ceiling.'),
+  ('Deep squat hold', 'mobility', 'time', 'Heels down, chest up, elbows gently push the knees out.'),
+  ('Pigeon stretch', 'mobility', 'time', 'Square the hips, breathe into the stretch. Per side.'),
+  ('Band shoulder dislocates', 'mobility', 'reps', 'Wide grip, straight arms, slow over and back.')
+on conflict ((lower(name))) do nothing;
