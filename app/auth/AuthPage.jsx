@@ -1,0 +1,163 @@
+import { useState } from "react";
+import logo from "../assets/logo.png";
+import { supabase } from "../lib/supabase";
+import { useAuth } from "./AuthProvider";
+
+function Shell({ children }) {
+  return (
+    <div className="auth">
+      <div className="auth-card">
+        <div className="center mb-16">
+          <img src={logo} alt="" style={{ width: 64, height: 64, margin: "0 auto 14px" }} />
+          <div className="h1">The Nordic Challenge</div>
+          <div className="muted mt-8">Train with Florian</div>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+export default function AuthPage() {
+  const [mode, setMode] = useState("signin"); // signin | signup | forgot
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [notice, setNotice] = useState(null);
+
+  function switchMode(m) {
+    setMode(m);
+    setError(null);
+    setNotice(null);
+  }
+
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      if (mode === "signin") {
+        const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+        if (error) throw error;
+      } else if (mode === "signup") {
+        if (!name.trim()) throw new Error("Please enter your name.");
+        const { data, error } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: { data: { full_name: name.trim() }, emailRedirectTo: window.location.origin },
+        });
+        if (error) throw error;
+        if (!data.session) setNotice("Almost there! Check your inbox and tap the link to confirm your email, then sign in.");
+      } else {
+        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: window.location.origin });
+        if (error) throw error;
+        setNotice("If that email has an account, a reset link is on its way.");
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Shell>
+      <form className="card col gap-16" onSubmit={submit}>
+        <div className="h2">{mode === "signin" ? "Sign in" : mode === "signup" ? "Create your account" : "Reset password"}</div>
+        {mode === "signup" && (
+          <label className="field">
+            <span>Your name</span>
+            <input className="input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required />
+          </label>
+        )}
+        <label className="field">
+          <span>Email</span>
+          <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required />
+        </label>
+        {mode !== "forgot" && (
+          <label className="field">
+            <span>Password</span>
+            <input
+              className="input"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete={mode === "signup" ? "new-password" : "current-password"}
+              minLength={6}
+              required
+            />
+          </label>
+        )}
+        {error && <div className="error-box">{error}</div>}
+        {notice && <div className="ok-box">{notice}</div>}
+        <button className="btn btn-primary btn-lg btn-block" disabled={busy}>
+          {busy ? "One moment…" : mode === "signin" ? "Sign in" : mode === "signup" ? "Create account" : "Send reset link"}
+        </button>
+        <div className="col gap-6 center small">
+          {mode === "signin" && (
+            <>
+              <button type="button" className="link-btn" onClick={() => switchMode("signup")}>
+                New here? Create an account
+              </button>
+              <button type="button" className="link-btn" style={{ color: "var(--text-2)" }} onClick={() => switchMode("forgot")}>
+                Forgot password?
+              </button>
+            </>
+          )}
+          {mode !== "signin" && (
+            <button type="button" className="link-btn" onClick={() => switchMode("signin")}>
+              Back to sign in
+            </button>
+          )}
+        </div>
+      </form>
+    </Shell>
+  );
+}
+
+export function SetNewPassword() {
+  const { finishRecovery } = useAuth();
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    const { error } = await supabase.auth.updateUser({ password });
+    setBusy(false);
+    if (error) setError(error.message);
+    else finishRecovery();
+  }
+
+  return (
+    <Shell>
+      <form className="card col gap-16" onSubmit={submit}>
+        <div className="h2">Choose a new password</div>
+        <label className="field">
+          <span>New password</span>
+          <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={6} autoComplete="new-password" required />
+        </label>
+        {error && <div className="error-box">{error}</div>}
+        <button className="btn btn-primary btn-lg btn-block" disabled={busy}>
+          {busy ? "Saving…" : "Save password"}
+        </button>
+      </form>
+    </Shell>
+  );
+}
+
+export function SetupPending() {
+  return (
+    <Shell>
+      <div className="card">
+        <div className="h3">Almost ready</div>
+        <p className="muted small">The app isn't connected to its database yet. This screen disappears as soon as the setup is finished.</p>
+      </div>
+    </Shell>
+  );
+}
