@@ -7,7 +7,9 @@ import { firstName, formatLabel } from "../lib/format";
 import { dayStatus, levelFor, totalXp, workoutStreak } from "../lib/gamify";
 import { companionLine, MOODS } from "../lib/companion";
 import Companion from "../components/Companion";
-import { ProgressBar } from "../components/ui";
+import { ProgressBar, useAsync } from "../components/ui";
+import { listEvents } from "../lib/api";
+import { EventRow, eventStatus } from "../components/ChallengeCalendar";
 import { checkinWeek, isCheckinTime } from "../components/Checkins";
 
 export function WorkoutCard({ day, status, big }) {
@@ -85,6 +87,10 @@ export default function TodayPage() {
     return { todays, upcoming, streak, xp, level, week, weekDone, situation };
   }, [program, sessions, sessionMap, today]);
 
+  const events = useAsync(listEvents, []);
+  const soonEvent = (events.data ?? []).find(
+    (e) => eventStatus(e, today) === "now" || (eventStatus(e, today) === "upcoming" && e.starts_on <= addDays(today, 7)),
+  );
   const week = checkinWeek(today);
   const checkinDue = isCheckinTime(today) && !(checkins ?? []).some((c) => c.week_start === week);
   const newReply = (checkins ?? []).find((c) => c.coach_reply && c.coach_replied_at && Date.now() - new Date(c.coach_replied_at) < 3 * 86400000);
@@ -106,6 +112,12 @@ export default function TodayPage() {
       <Companion mood={MOODS[view.situation]} coachAvatar={coach?.avatar_url}>
         {line}
       </Companion>
+
+      {soonEvent && (
+        <Link to="/app/journey" className="mt-16" style={{ display: "block" }}>
+          <EventRow event={{ ...soonEvent, description: null }} />
+        </Link>
+      )}
 
       {(checkinDue || newReply) && (
         <Link to="/app/checkin" className="card card-link row mt-16" style={{ display: "flex", borderColor: "rgba(255,226,52,0.35)" }}>

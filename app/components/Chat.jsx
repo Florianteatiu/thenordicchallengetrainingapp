@@ -103,7 +103,7 @@ function useRecorder(onDone) {
     timer.current = setInterval(() => {
       const s = Math.round((Date.now() - started.current) / 1000);
       setSeconds(s);
-      if (s >= 300) r.state === "recording" && r.stop(); // 5 minutes max
+      if (s >= 300 && r.state === "recording") r.stop(); // 5 minutes max
     }, 250);
     r.start();
     setRecording(true);

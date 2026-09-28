@@ -44,8 +44,14 @@ in `.env.local` as `VITE_DEV_SUPABASE_URL` / `VITE_DEV_SUPABASE_ANON_KEY`,
   `client/CheckinPage.jsx`, `components/Checkins.jsx`. Prompted Fri–Mon.
 - Cross Sweden: `activities` + `journey_totals()` (activities + workout distance on
   exercises with `journey_kind`). Routes/places/stories in `lib/journey.js`
-  (run Stockholm→Gothenburg 513 km, bike Malmö→Stockholm 695 km, swim Gothenburg→Malmö
-  240 km). Florian's stories go in each place's `story` field. Map outline in
+  — order is always swim, bike, run: swim Gothenburg→Malmö 240 km (west coast), bike
+  Malmö→Stockholm 695 km (via Karlskrona, Kalmar, Linköping), run Stockholm→Gothenburg
+  513 km (via Nyköping, Jönköping, Borås). Towns are Florian's; km per town are scaled
+  estimates to his official totals. `via: true` points only shape the line. Florian's
+  stories go in each place's `story` field.
+- Challenge calendar: `events` table (coach edits at /coach/calendar, clients see it
+  at the bottom of Journey + a Today banner when one is on or within 7 days).
+  Website link = `WEBSITE_URL` in config. Map outline in
   `lib/swedenMap.js` (generated from Natural Earth, don't hand-edit).
 - Push: `push_subscriptions`, edge function `supabase/functions/notify` (types: message,
   workout, checkin, checkin_reply, program, daily). Needs VAPID_PUBLIC_KEY/PRIVATE_KEY

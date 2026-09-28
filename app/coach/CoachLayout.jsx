@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { CalendarRange, Dumbbell, Inbox, Library, LogOut, UserRound, Users } from "lucide-react";
+import { CalendarDays, CalendarRange, Dumbbell, Inbox, Library, LogOut, UserRound, Users } from "lucide-react";
 import { useConversations } from "../lib/useUnread";
 import logo from "../assets/logo.png";
 import { useAuth } from "../auth/AuthProvider";
@@ -11,6 +11,7 @@ const NAV = [
   { to: "/coach/programs", label: "Programs", icon: CalendarRange },
   { to: "/coach/workouts", label: "Workouts", icon: Dumbbell },
   { to: "/coach/library", label: "Exercises", icon: Library },
+  { to: "/coach/calendar", label: "Calendar", icon: CalendarDays },
 ];
 
 export default function CoachLayout() {

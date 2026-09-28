@@ -3,7 +3,7 @@ import { Bike, BookOpen, Check, Flag, Footprints, MapPin, Plus, Trash2, Waves } 
 import { deleteActivity, getJourneyTotals, listActivities, logActivity } from "../lib/api";
 import { formatDate, todayISO } from "../lib/dates";
 import { formatActivityDuration, formatKm, numOrNull, parseActivityDuration } from "../lib/format";
-import { LEG, LEGS, legProgress, newlyReached } from "../lib/journey";
+import { LEG, LEGS, legProgress, newlyReached, stops } from "../lib/journey";
 import { ErrorBox, Modal, ProgressBar, Spinner, useAsync } from "./ui";
 import SwedenMap from "./SwedenMap";
 
@@ -109,7 +109,7 @@ function ReachedModal({ leg, places, onClose }) {
 
 // The whole journey for one client. Editable (log/delete) only for the client.
 export default function JourneyView({ clientId, editable = false }) {
-  const [focus, setFocus] = useState("run");
+  const [focus, setFocus] = useState("swim");
   const [logging, setLogging] = useState(false);
   const [reached, setReached] = useState(null);
   const [story, setStory] = useState(null);
@@ -207,7 +207,7 @@ export default function JourneyView({ clientId, editable = false }) {
       </div>
 
       <div className="card" style={{ padding: 0 }}>
-        {leg.places.map((p, i) => {
+        {stops(leg).map((p, i) => {
           const isReached = prog.km >= p.km;
           const isNext = prog.next?.name === p.name;
           return (
@@ -236,8 +236,8 @@ export default function JourneyView({ clientId, editable = false }) {
         {activities.length === 0 ? (
           <div className="empty small">
             {editable
-              ? "Log your runs, rides and swims here. Distance from workouts in your program counts automatically."
-              : "No runs, rides or swims logged yet."}
+              ? "Log your swims, rides and runs here. Distance from workouts in your program counts automatically."
+              : "No swims, rides or runs logged yet."}
           </div>
         ) : (
           <div className="list">
