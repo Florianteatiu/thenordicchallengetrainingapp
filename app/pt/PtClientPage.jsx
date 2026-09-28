@@ -243,7 +243,7 @@ export default function PtClientPage() {
                 <div className="grow">
                   <div style={{ fontWeight: 700 }} className="ellipsis">{sessionTitle(s)}</div>
                   <div className="small muted ellipsis">
-                    {formatDate(s.session_date, { weekday: "long", year: "numeric" })}
+                    {formatDate(s.session_date, { weekday: "long" })}
                     {s.notes ? ` · “${s.notes}”` : ""}
                   </div>
                 </div>

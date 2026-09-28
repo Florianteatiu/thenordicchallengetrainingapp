@@ -92,6 +92,7 @@ img { display: block; }
 .card-yellow { background: var(--yellow); color: var(--on-yellow); border-color: var(--yellow); }
 .card-yellow .muted { color: rgba(0, 0, 0, 0.62); }
 .card-link { display: block; transition: border-color 0.15s, background 0.15s; }
+.card-link.row { display: flex; }
 .card-link:hover { border-color: var(--line-strong); background: var(--surface-2); }
 .section { margin-top: 24px; }
 .section-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }

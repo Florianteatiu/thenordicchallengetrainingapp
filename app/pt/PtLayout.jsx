@@ -1,5 +1,5 @@
 import { Link, NavLink, Outlet } from "react-router-dom";
-import { Dumbbell, Library, Users, Wifi } from "lucide-react";
+import { Dumbbell, Library, Users } from "lucide-react";
 import logo from "../assets/logo.png";
 
 const TABS = [
@@ -9,7 +9,9 @@ const TABS = [
 ];
 
 // Nordic PT: the in-person coaching app. Same login and exercise library as
-// the online app, its own clients and sessions.
+// the online app, its own clients and sessions. No link to the online app:
+// on iPhone a home-screen app can't open another one, it opens a browser
+// sheet on top instead (and closing it breaks the safe area at the top).
 export default function PtLayout() {
   return (
     <div className="pt-shell">
@@ -20,9 +22,6 @@ export default function PtLayout() {
             Nordic <span className="yellow">PT</span>
           </span>
         </Link>
-        <a href="/coach" className="pill" title="Switch to the online coaching app">
-          <Wifi size={12} /> Online app
-        </a>
       </header>
       <main className="pt-main">
         <Outlet />

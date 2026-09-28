@@ -61,9 +61,6 @@ export default function CoachLayout() {
               {badge(n.to)}
             </NavLink>
           ))}
-          <a href="/pt" className="nav-link">
-            In-person app
-          </a>
           <NavLink to="/coach/profile" className={linkClass} aria-label="My profile">
             <UserRound size={17} />
           </NavLink>
