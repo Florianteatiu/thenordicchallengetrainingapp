@@ -1,5 +1,5 @@
 import { MAP, NEIGHBOURS_PATH, SWEDEN_PATH, project } from "../lib/swedenMap";
-import { LEGS, legProgress, polyline, positionAt } from "../lib/journey";
+import { LEGS, legProgress, pathPoint, polyline, positionAt, stops } from "../lib/journey";
 
 // Crop of the map that holds all three legs.
 const VIEW = { x: 0, y: 55, w: MAP.width, h: MAP.height - 55 };
@@ -8,10 +8,10 @@ const CITIES = ["Stockholm", "Gothenburg", "Malmö"];
 const ICON = { run: "R", bike: "B", swim: "S" };
 
 // Southern Sweden with the three legs of the crossing and where the athlete
-// is on each. `totals` = { run, bike, swim } in km. `focus` dims the other legs.
+// is on each. `totals` = { swim, bike, run } in km. `focus` dims the other legs.
 export default function SwedenMap({ totals, focus = null }) {
   const bigCities = CITIES.map((name) => {
-    const place = LEGS.flatMap((l) => l.places).find((p) => p.name === name);
+    const place = LEGS.flatMap(stops).find((p) => p.name === name);
     return { name, xy: project(...place.lonlat) };
   });
 
@@ -54,8 +54,8 @@ export default function SwedenMap({ totals, focus = null }) {
                 filter="url(#glow)"
               />
             )}
-            {leg.places.slice(1, -1).map((p) => {
-              const [x, y] = project(...(p.at ?? p.lonlat));
+            {stops(leg).slice(1, -1).map((p) => {
+              const [x, y] = pathPoint(p);
               const reached = km >= p.km;
               return <circle key={p.name} cx={x} cy={y} r={reached ? 3.2 : 2.6} fill={reached ? leg.color : "#0a0a0a"} stroke={leg.color} strokeWidth="1.3" />;
             })}

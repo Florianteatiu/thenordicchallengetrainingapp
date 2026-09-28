@@ -13,6 +13,7 @@ import WorkoutBuilderPage from "./coach/WorkoutBuilderPage";
 import LibraryPage from "./coach/LibraryPage";
 import CoachProfilePage from "./coach/CoachProfilePage";
 import InboxPage from "./coach/InboxPage";
+import EventsPage from "./coach/EventsPage";
 
 import ClientLayout from "./client/ClientLayout";
 import TodayPage from "./client/TodayPage";
@@ -55,6 +56,7 @@ export default function App() {
           <Route path="profile" element={<CoachProfilePage />} />
           <Route path="inbox" element={<InboxPage />} />
           <Route path="inbox/:clientId" element={<InboxPage />} />
+          <Route path="calendar" element={<EventsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/coach" replace />} />
       </Routes>

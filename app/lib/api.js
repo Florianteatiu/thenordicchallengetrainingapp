@@ -559,3 +559,19 @@ export async function deletePushSubscription(endpoint) {
 export async function listSessionComments(sessionId) {
   return check(await supabase.from("messages").select("*").eq("session_id", sessionId).order("created_at"));
 }
+
+// ---------- Challenge calendar ----------
+
+export async function listEvents() {
+  return check(await supabase.from("events").select("*").order("starts_on"));
+}
+
+export async function saveEvent(event) {
+  const { id, created_at: _created, ...fields } = event;
+  if (id) return check(await supabase.from("events").update(fields).eq("id", id).select().single());
+  return check(await supabase.from("events").insert(fields).select().single());
+}
+
+export async function deleteEvent(id) {
+  check(await supabase.from("events").delete().eq("id", id));
+}

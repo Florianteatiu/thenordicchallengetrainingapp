@@ -17,3 +17,6 @@ export const WELCOME_VIDEO_URL = "";
 // Public half of the push-notification key pair (safe to ship). Empty =
 // notifications are switched off in the app.
 export const VAPID_PUBLIC_KEY = "BKw2xOTWwXH5NvrRRNxr2kaKjsT3tf1S2NC70SADanwgXHs8t1qzDhUI1sAsZBVC2uA3DP-goXv8hHoPxQSP4mk";
+
+// The Nordic Challenge website, linked from the challenge calendar.
+export const WEBSITE_URL = "https://thenordicchallenge.se";

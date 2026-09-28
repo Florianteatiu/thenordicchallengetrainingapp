@@ -76,7 +76,7 @@ export default function WelcomeFlow() {
             <VideoEmbed url={WELCOME_VIDEO_URL} />
           ) : (
             <Companion large mood="wave" coachAvatar={coach?.avatar_url}>
-              I'm {COACH_FIRST_NAME}. I crossed Sweden by running, cycling and swimming, and now I'm here to help you go further than you think you
+              I'm {COACH_FIRST_NAME}. I crossed Sweden by swimming, cycling and running, and now I'm here to help you go further than you think you
               can. No level required. Just show up, and I'll take care of the plan.
             </Companion>
           )}
