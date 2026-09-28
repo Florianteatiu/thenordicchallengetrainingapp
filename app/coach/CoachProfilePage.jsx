@@ -5,6 +5,7 @@ import { updateProfile, uploadAvatar } from "../lib/api";
 import { companionLine, MOODS } from "../lib/companion";
 import Companion from "../components/Companion";
 import { Avatar, CommitInput, ErrorBox } from "../components/ui";
+import PushToggle from "../components/PushToggle";
 
 export default function CoachProfilePage() {
   const { profile, setProfile, signOut } = useAuth();
@@ -56,6 +57,10 @@ export default function CoachProfilePage() {
           />
         </label>
         <ErrorBox error={error} />
+      </div>
+
+      <div className="section">
+        <PushToggle description="Messages, finished workouts and check-ins from your clients." />
       </div>
 
       <div className="section">

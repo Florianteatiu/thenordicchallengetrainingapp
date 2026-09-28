@@ -215,6 +215,7 @@ export async function copyProgram({ programId, clientId = null, startDate = null
 
 export async function activateProgram(id) {
   check(await supabase.rpc("activate_program", { p_program_id: id }));
+  notify("program", id);
 }
 
 export async function copyWeek(programId, fromWeek, toWeek) {
@@ -313,7 +314,7 @@ export async function upsertBlockLog(row) {
 }
 
 export async function completeSession(id, { rpe, feeling, notes }) {
-  return check(
+  const saved = check(
     await supabase
       .from("workout_sessions")
       .update({ completed_at: new Date().toISOString(), rpe, feeling, notes: notes || null })
@@ -321,6 +322,8 @@ export async function completeSession(id, { rpe, feeling, notes }) {
       .select()
       .single(),
   );
+  notify("workout", id);
+  return saved;
 }
 
 // Most recent logged sets per exercise, from sessions other than `excludeSessionId`.
@@ -353,4 +356,206 @@ export async function getSessionDetail(sessionId) {
   const session = check(await supabase.from("workout_sessions").select("*").eq("id", sessionId).single());
   const [logs, workout] = await Promise.all([getSessionLogs(sessionId), session.workout_id ? getWorkout(session.workout_id).catch(() => null) : null]);
   return { session, workout, ...logs };
+}
+
+// ---------- Messages (chat) ----------
+
+export async function listMessages(clientId, { limit = 200 } = {}) {
+  const rows = check(
+    await supabase.from("messages").select("*").eq("client_id", clientId).order("created_at", { ascending: false }).limit(limit),
+  );
+  return rows.reverse();
+}
+
+// Latest message + unread count per conversation, for the coach's inbox.
+export async function listConversations() {
+  const rows = check(await supabase.from("messages").select("id, client_id, sender_id, body, audio_path, read_at, created_at").order("created_at", { ascending: false }).limit(1000));
+  const byClient = {};
+  for (const m of rows) {
+    const c = (byClient[m.client_id] ??= { clientId: m.client_id, last: m, unread: 0 });
+    if (!m.read_at && m.sender_id === m.client_id) c.unread += 1;
+  }
+  return byClient;
+}
+
+export async function countUnread(clientId, myId) {
+  const { count, error } = await supabase
+    .from("messages")
+    .select("id", { count: "exact", head: true })
+    .eq("client_id", clientId)
+    .neq("sender_id", myId)
+    .is("read_at", null);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+export async function sendMessage({ clientId, body = null, audioPath = null, audioDurationSec = null, sessionId = null, setLogId = null, contextLabel = null }) {
+  const message = check(
+    await supabase
+      .from("messages")
+      .insert({
+        client_id: clientId,
+        body: body?.trim() || null,
+        audio_path: audioPath,
+        audio_duration_sec: audioDurationSec,
+        session_id: sessionId,
+        set_log_id: setLogId,
+        context_label: contextLabel,
+      })
+      .select()
+      .single(),
+  );
+  notify("message", message.id);
+  return message;
+}
+
+export async function deleteMessage(id) {
+  check(await supabase.from("messages").delete().eq("id", id));
+}
+
+export async function markMessagesRead(clientId) {
+  check(await supabase.rpc("mark_messages_read", { p_client_id: clientId }));
+}
+
+export async function uploadVoiceNote(clientId, blob) {
+  const ext = blob.type.includes("mp4") ? "m4a" : blob.type.includes("ogg") ? "ogg" : "webm";
+  const path = `${clientId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  check(await supabase.storage.from("voice-notes").upload(path, blob, { contentType: blob.type || "audio/webm" }));
+  return path;
+}
+
+const signedCache = new Map();
+// Short-lived links to private files (voice notes, check-in photos).
+export async function signedUrl(bucket, path) {
+  const key = `${bucket}/${path}`;
+  const hit = signedCache.get(key);
+  if (hit && hit.expires > Date.now()) return hit.url;
+  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 60);
+  if (error) throw error;
+  signedCache.set(key, { url: data.signedUrl, expires: Date.now() + 50 * 60 * 1000 });
+  return data.signedUrl;
+}
+
+export function subscribeToMessages(clientId, onChange) {
+  const channel = supabase
+    .channel(`messages-${clientId ?? "all"}-${Math.random().toString(36).slice(2)}`)
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "messages", ...(clientId ? { filter: `client_id=eq.${clientId}` } : {}) },
+      (payload) => onChange(payload),
+    )
+    .subscribe();
+  return () => supabase.removeChannel(channel);
+}
+
+// ---------- Weekly check-ins ----------
+
+export async function listCheckins(clientId) {
+  return check(await supabase.from("checkins").select("*").eq("client_id", clientId).order("week_start", { ascending: false }));
+}
+
+export async function listRecentCheckinsAll(sinceIso) {
+  return check(await supabase.from("checkins").select("*").gte("week_start", sinceIso).order("created_at", { ascending: false }));
+}
+
+export async function saveCheckin(row) {
+  const { id, ...fields } = row;
+  let saved;
+  if (id) saved = check(await supabase.from("checkins").update(fields).eq("id", id).select().single());
+  else {
+    saved = check(await supabase.from("checkins").insert(fields).select().single());
+    notify("checkin", saved.id);
+  }
+  return saved;
+}
+
+export async function replyToCheckin(id, reply) {
+  const saved = check(await supabase.from("checkins").update({ coach_reply: reply }).eq("id", id).select().single());
+  if (saved.coach_reply) notify("checkin_reply", id);
+  return saved;
+}
+
+export async function uploadCheckinPhoto(clientId, file) {
+  const ext = (file.name?.split(".").pop() || "jpg").toLowerCase();
+  const path = `${clientId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  check(await supabase.storage.from("checkin-photos").upload(path, file, { contentType: file.type || "image/jpeg" }));
+  return path;
+}
+
+// ---------- Cross Sweden journey ----------
+
+export async function listActivities(clientId) {
+  return check(await supabase.from("activities").select("*").eq("client_id", clientId).order("activity_date", { ascending: false }).order("created_at", { ascending: false }));
+}
+
+export async function logActivity({ kind, distanceKm, durationSec = null, date, notes = null }) {
+  return check(
+    await supabase
+      .from("activities")
+      .insert({ kind, distance_km: distanceKm, duration_sec: durationSec, activity_date: date, notes: notes?.trim() || null })
+      .select()
+      .single(),
+  );
+}
+
+export async function deleteActivity(id) {
+  check(await supabase.from("activities").delete().eq("id", id));
+}
+
+export async function getJourneyTotals(clientId) {
+  const rows = check(await supabase.rpc("journey_totals", { p_client_id: clientId }));
+  const totals = { run: 0, bike: 0, swim: 0 };
+  for (const r of rows ?? []) totals[r.kind] = Number(r.km) || 0;
+  return totals;
+}
+
+// ---------- Lift progress ----------
+
+// Every logged weighted set for one client, oldest first, with exercise name.
+export async function listWeightedSets(clientId) {
+  return check(
+    await supabase
+      .from("set_logs")
+      .select("exercise_id, reps, load_kg, created_at, session_id, exercise:exercises(name), session:workout_sessions!inner(client_id)")
+      .eq("session.client_id", clientId)
+      .not("load_kg", "is", null)
+      .gt("load_kg", 0)
+      .order("created_at", { ascending: true })
+      .limit(5000),
+  );
+}
+
+// ---------- Exercise videos ----------
+
+export async function uploadExerciseVideo(exerciseId, file) {
+  const ext = (file.name?.split(".").pop() || "mp4").toLowerCase();
+  const path = `${exerciseId}/${Date.now()}.${ext}`;
+  check(await supabase.storage.from("exercise-videos").upload(path, file, { contentType: file.type || "video/mp4" }));
+  return supabase.storage.from("exercise-videos").getPublicUrl(path).data.publicUrl;
+}
+
+// ---------- Push notifications ----------
+
+// Asks the notify function to tell the other side about something that just
+// happened. Fire-and-forget: a notification failing must never break the
+// action itself.
+export function notify(type, id) {
+  supabase.functions.invoke("notify", { body: { type, id } }).catch(() => {});
+}
+
+export async function savePushSubscription(sub) {
+  const json = sub.toJSON();
+  check(
+    await supabase
+      .from("push_subscriptions")
+      .upsert({ endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth }, { onConflict: "endpoint" }),
+  );
+}
+
+export async function deletePushSubscription(endpoint) {
+  check(await supabase.from("push_subscriptions").delete().eq("endpoint", endpoint));
+}
+
+export async function listSessionComments(sessionId) {
+  return check(await supabase.from("messages").select("*").eq("session_id", sessionId).order("created_at"));
 }

@@ -9,3 +9,11 @@ export const COACH_FIRST_NAME = "Florian";
 // Moods without a photo fall back to the coach's profile picture, then to the
 // logo. Example: { cheer: "/companion/cheer.jpg" }
 export const COMPANION_PHOTOS = {};
+
+// Welcome video shown to new clients on their first sign-in (a YouTube/Vimeo
+// link or a video file URL). Empty = the welcome shows a written message.
+export const WELCOME_VIDEO_URL = "";
+
+// Public half of the push-notification key pair (safe to ship). Empty =
+// notifications are switched off in the app.
+export const VAPID_PUBLIC_KEY = "";

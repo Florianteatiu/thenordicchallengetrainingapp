@@ -1,11 +1,15 @@
 import { useMemo, useState } from "react";
-import { useOutletContext } from "react-router-dom";
+import { Link, useOutletContext } from "react-router-dom";
+import { ChevronRight, ClipboardCheck } from "lucide-react";
+import { useAuth } from "../auth/AuthProvider";
+import LiftProgress from "../components/LiftProgress";
 import { addDays, formatDateTime, mondayOf, todayISO } from "../lib/dates";
 import { levelFor, totalXp } from "../lib/gamify";
 import SessionDetailModal, { FEELINGS } from "../components/SessionDetail";
 
 export default function HistoryPage() {
   const { sessions } = useOutletContext();
+  const { profile } = useAuth();
   const [open, setOpen] = useState(null);
   const completed = useMemo(() => sessions.filter((s) => s.completed_at), [sessions]);
   const level = levelFor(totalXp(sessions));
@@ -67,6 +71,19 @@ export default function HistoryPage() {
           <span>This week</span>
         </div>
       </div>
+
+      <div className="section">
+        <div className="eyebrow mb-8">Strength</div>
+        <LiftProgress clientId={profile.id} />
+      </div>
+
+      <Link to="/app/checkin" className="card card-link row mt-16" style={{ display: "flex" }}>
+        <ClipboardCheck size={20} className="yellow" />
+        <div className="grow" style={{ fontWeight: 700 }}>
+          Weekly check-ins
+        </div>
+        <ChevronRight size={18} className="faint" />
+      </Link>
 
       <div className="section">
         <div className="eyebrow mb-8">History</div>

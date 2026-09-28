@@ -1,12 +1,14 @@
 import { useMemo, useState } from "react";
-import { Pencil, Plus, Search, Video } from "lucide-react";
-import { deleteExercise, listExercises, saveExercise } from "../lib/api";
+import { Pencil, Plus, Search, Upload, Video } from "lucide-react";
+import { deleteExercise, listExercises, saveExercise, uploadExerciseVideo } from "../lib/api";
+import VideoEmbed from "../components/VideoEmbed";
 import { CATEGORIES, TRACKING, categoryLabel } from "../lib/format";
 import { ErrorBox, Modal, PageLoader, useAsync } from "../components/ui";
 
 function ExerciseModal({ exercise, onClose, onSaved, onDeleted }) {
-  const [form, setForm] = useState({ name: "", category: "strength", tracking: "weight_reps", video_url: "", cues: "", ...exercise });
+  const [form, setForm] = useState({ name: "", category: "strength", tracking: "weight_reps", video_url: "", cues: "", journey_kind: null, ...exercise });
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
 
@@ -15,12 +17,36 @@ function ExerciseModal({ exercise, onClose, onSaved, onDeleted }) {
     setBusy(true);
     setError(null);
     try {
-      const { id, name, category, tracking, video_url, cues } = form;
-      const saved = await saveExercise({ id, name: name.trim(), category, tracking, video_url: video_url?.trim() || null, cues: cues?.trim() || null });
+      const { id, name, category, tracking, video_url, cues, journey_kind } = form;
+      const saved = await saveExercise({
+        id,
+        name: name.trim(),
+        category,
+        tracking,
+        video_url: video_url?.trim() || null,
+        cues: cues?.trim() || null,
+        journey_kind: tracking === "distance_time" ? journey_kind || null : null,
+      });
       onSaved(saved);
     } catch (e) {
       setError(e.code === "23505" ? "An exercise with that name already exists." : e);
       setBusy(false);
+    }
+  }
+
+  async function onVideo(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 200 * 1024 * 1024) return setError("That video is over 200 MB. Trim it or export at a lower quality.");
+    setUploading(true);
+    setError(null);
+    try {
+      set({ video_url: await uploadExerciseVideo(form.id ?? `new-${Date.now()}`, file) });
+    } catch (err) {
+      setError(err);
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -50,7 +76,7 @@ function ExerciseModal({ exercise, onClose, onSaved, onDeleted }) {
           <button className="btn btn-ghost" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn btn-primary" onClick={save} disabled={busy}>
+          <button className="btn btn-primary" onClick={save} disabled={busy || uploading}>
             Save
           </button>
         </>
@@ -83,10 +109,28 @@ function ExerciseModal({ exercise, onClose, onSaved, onDeleted }) {
             </select>
           </label>
         </div>
-        <label className="field">
-          <span>Demo video link (YouTube, Instagram, Vimeo…)</span>
-          <input className="input" value={form.video_url ?? ""} onChange={(e) => set({ video_url: e.target.value })} placeholder="https://" />
-        </label>
+        {form.tracking === "distance_time" && (
+          <label className="field">
+            <span>Counts on the Cross Sweden map as</span>
+            <select className="select" value={form.journey_kind ?? ""} onChange={(e) => set({ journey_kind: e.target.value || null })}>
+              <option value="">Doesn't count</option>
+              <option value="run">Running</option>
+              <option value="bike">Cycling</option>
+              <option value="swim">Swimming</option>
+            </select>
+          </label>
+        )}
+        <div className="field">
+          <span>Demo video</span>
+          {form.video_url && <VideoEmbed url={form.video_url} />}
+          <div className="row gap-6">
+            <label className="btn btn-ghost btn-sm" style={{ cursor: "pointer", flexShrink: 0 }}>
+              <Upload size={15} /> {uploading ? "Uploading…" : form.video_url ? "Replace video" : "Upload video"}
+              <input type="file" accept="video/*" hidden onChange={onVideo} disabled={uploading} />
+            </label>
+            <input className="input grow" value={form.video_url ?? ""} onChange={(e) => set({ video_url: e.target.value })} placeholder="…or paste a YouTube / Vimeo link" />
+          </div>
+        </div>
         <label className="field">
           <span>Coaching cues</span>
           <textarea className="textarea" value={form.cues ?? ""} onChange={(e) => set({ cues: e.target.value })} placeholder="What the client should focus on" />

@@ -115,3 +115,28 @@ export function initials(name = "") {
 export function firstName(name = "") {
   return name.trim().split(/\s+/)[0] || "";
 }
+
+// For runs/rides/swims: "45" = 45 min, "45:30" = 45 min 30 s, "1:05:00" = 1 h 5 min.
+export function parseActivityDuration(text) {
+  const t = String(text ?? "").trim();
+  if (!t) return null;
+  const parts = t.split(":").map((p) => Number(p || 0));
+  if (parts.some((n) => !Number.isFinite(n))) return null;
+  if (parts.length === 1) return Math.round(parts[0] * 60);
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  return parts[0] * 3600 + parts[1] * 60 + parts[2];
+}
+
+// 3900 -> "1 h 05 min", 1830 -> "30:30"
+export function formatActivityDuration(sec) {
+  if (!sec) return "";
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  if (h) return `${h} h ${String(m).padStart(2, "0")} min`;
+  return formatClock(sec);
+}
+
+export function formatKm(km) {
+  const n = Number(km) || 0;
+  return n >= 100 ? String(Math.round(n)) : String(+n.toFixed(1));
+}
