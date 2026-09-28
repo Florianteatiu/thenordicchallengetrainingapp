@@ -3,10 +3,12 @@ import { Link, useNavigate } from "react-router-dom";
 import { Copy, Plus, Search, Trash2 } from "lucide-react";
 import { copyWorkout, createWorkout, deleteWorkout, listWorkoutTemplates } from "../lib/api";
 import { formatLabel } from "../lib/format";
+import { useCoachBase } from "../lib/base";
 import { ErrorBox, PageLoader, useAsync } from "../components/ui";
 
 export default function WorkoutsPage() {
   const navigate = useNavigate();
+  const base = useCoachBase();
   const { data, loading, error, reload } = useAsync(listWorkoutTemplates, []);
   const [q, setQ] = useState("");
   const [actionError, setActionError] = useState(null);
@@ -14,7 +16,7 @@ export default function WorkoutsPage() {
   async function create() {
     try {
       const w = await createWorkout({ title: "New workout", isTemplate: true });
-      navigate(`/coach/workouts/${w.id}`);
+      navigate(`${base}/workouts/${w.id}`);
     } catch (e) {
       setActionError(e);
     }
@@ -65,7 +67,7 @@ export default function WorkoutsPage() {
         <div className="grid-cards">
           {list.map((w) => (
             <div key={w.id} className="card col">
-              <Link to={`/coach/workouts/${w.id}`} className="grow">
+              <Link to={`${base}/workouts/${w.id}`} className="grow">
                 <div className="h3">{w.title}</div>
                 <div className="small muted mt-4">{w.exerciseCount} {w.exerciseCount === 1 ? "exercise" : "exercises"}</div>
                 <div className="chips mt-8">
@@ -77,7 +79,7 @@ export default function WorkoutsPage() {
                 </div>
               </Link>
               <div className="row between">
-                <Link className="btn btn-sm" to={`/coach/workouts/${w.id}`}>
+                <Link className="btn btn-sm" to={`${base}/workouts/${w.id}`}>
                   Edit
                 </Link>
                 <div className="row gap-4">

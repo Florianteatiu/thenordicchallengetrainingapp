@@ -75,7 +75,8 @@ export function numOrNull(v) {
 export function prescription(item, format, tracking) {
   const parts = [];
   const volume = [];
-  if (format === "sets" && item.sets) volume.push(`${item.sets} ×`);
+  const hasAmount = item.reps || item.duration_sec || item.distance_m;
+  if (format === "sets" && item.sets) volume.push(hasAmount ? `${item.sets} ×` : `${item.sets} sets`);
   if (item.reps) volume.push(item.reps);
   if (item.duration_sec) volume.push(formatDuration(item.duration_sec));
   if (item.distance_m) volume.push(formatDistance(item.distance_m));

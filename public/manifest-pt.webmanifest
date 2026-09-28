@@ -1,0 +1,17 @@
+{
+  "id": "/pt/",
+  "name": "Nordic PT — In-person coaching",
+  "short_name": "Nordic PT",
+  "description": "Florian's in-person coaching app: clients, live session logging, notes and progress.",
+  "start_url": "/pt/",
+  "scope": "/pt/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [
+    { "src": "/icons/pt-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/pt-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/pt-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

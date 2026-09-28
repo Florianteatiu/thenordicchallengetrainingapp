@@ -525,6 +525,173 @@ export async function listWeightedSets(clientId) {
   );
 }
 
+// ---------- In-person coaching (the Nordic PT app) ----------
+
+export async function listPtClients() {
+  const [clients, sessions] = await Promise.all([
+    supabase.from("pt_clients").select("*").order("full_name"),
+    supabase.from("pt_sessions").select("client_id, session_date").order("session_date", { ascending: false }).limit(5000),
+  ]);
+  const stats = {};
+  for (const s of check(sessions)) {
+    const st = (stats[s.client_id] ??= { count: 0, last: s.session_date });
+    st.count += 1;
+  }
+  return check(clients).map((c) => ({ ...c, sessionCount: stats[c.id]?.count ?? 0, lastSession: stats[c.id]?.last ?? null }));
+}
+
+export async function getPtClient(id) {
+  return check(await supabase.from("pt_clients").select("*").eq("id", id).single());
+}
+
+export async function savePtClient(client) {
+  const { id, ...fields } = client;
+  if (id) return check(await supabase.from("pt_clients").update(fields).eq("id", id).select().single());
+  return check(await supabase.from("pt_clients").insert(fields).select().single());
+}
+
+export async function deletePtClient(id) {
+  check(await supabase.from("pt_clients").delete().eq("id", id));
+}
+
+export async function listPtSessions(clientId) {
+  return check(
+    await supabase
+      .from("pt_sessions")
+      .select("*, workout:workouts(title)")
+      .eq("client_id", clientId)
+      .order("session_date", { ascending: false })
+      .order("started_at", { ascending: false })
+      .limit(500),
+  );
+}
+
+export async function getPtSession(id) {
+  return check(await supabase.from("pt_sessions").select("*, client:pt_clients(id, full_name)").eq("id", id).single());
+}
+
+// Starts a session for a client on a date. `fromWorkoutId` (a template, or the
+// workout of an earlier session) is copied so the session owns its version;
+// without it the session starts empty.
+export async function createPtSession({ clientId, date, fromWorkoutId = null }) {
+  const workout = fromWorkoutId ? await getWorkout(await copyWorkout(fromWorkoutId, false)) : await createWorkout({ title: "Session" });
+  return check(
+    await supabase
+      .from("pt_sessions")
+      .insert({ client_id: clientId, session_date: date, workout_id: workout.id, workout_title: workout.title })
+      .select()
+      .single(),
+  );
+}
+
+export async function updatePtSession(id, patch) {
+  return check(await supabase.from("pt_sessions").update(patch).eq("id", id).select().single());
+}
+
+export async function deletePtSession(id) {
+  check(await supabase.from("pt_sessions").delete().eq("id", id));
+}
+
+export async function getPtSessionLogs(sessionId) {
+  const [sets, blocks] = await Promise.all([
+    supabase.from("pt_set_logs").select("*").eq("session_id", sessionId),
+    supabase.from("pt_block_logs").select("*").eq("session_id", sessionId),
+  ]);
+  return { sets: check(sets), blocks: check(blocks) };
+}
+
+export async function upsertPtSetLog(row) {
+  return check(await supabase.from("pt_set_logs").upsert(row, { onConflict: "session_id,block_exercise_id,set_number" }).select().single());
+}
+
+export async function deletePtSetLog(sessionId, blockExerciseId, setNumber) {
+  check(await supabase.from("pt_set_logs").delete().eq("session_id", sessionId).eq("block_exercise_id", blockExerciseId).eq("set_number", setNumber));
+}
+
+export async function upsertPtBlockLog(row) {
+  return check(await supabase.from("pt_block_logs").upsert(row, { onConflict: "session_id,block_id" }).select().single());
+}
+
+// Same shape as getLastPerformance, for an in-person client. "Last" goes by
+// session date, so backdated sessions land in the right place.
+export async function getPtLastPerformance(clientId, exerciseIds, excludeSessionId) {
+  if (!exerciseIds.length) return {};
+  const rows = check(
+    await supabase
+      .from("pt_set_logs")
+      .select("exercise_id, set_number, reps, load_kg, duration_sec, distance_m, session_id, session:pt_sessions!inner(client_id, session_date, started_at)")
+      .in("exercise_id", exerciseIds)
+      .eq("session.client_id", clientId)
+      .neq("session_id", excludeSessionId)
+      .limit(2000),
+  );
+  const newest = (r) => `${r.session.session_date} ${r.session.started_at}`;
+  rows.sort((a, b) => newest(b).localeCompare(newest(a)));
+  const result = {};
+  for (const r of rows) {
+    const entry = result[r.exercise_id];
+    if (!entry) result[r.exercise_id] = { sessionId: r.session_id, date: r.session.session_date, sets: [r], bestKg: r.load_kg ?? 0 };
+    else {
+      if (entry.sessionId === r.session_id) entry.sets.push(r);
+      entry.bestKg = Math.max(entry.bestKg, r.load_kg ?? 0);
+    }
+  }
+  for (const e of Object.values(result)) e.sets.sort((a, b) => a.set_number - b.set_number);
+  return result;
+}
+
+// Weighted sets for the lift charts, dated by the session (not by when they
+// were typed in).
+export async function listPtWeightedSets(clientId) {
+  const rows = check(
+    await supabase
+      .from("pt_set_logs")
+      .select("exercise_id, reps, load_kg, session_id, exercise:exercises(name), session:pt_sessions!inner(client_id, session_date)")
+      .eq("session.client_id", clientId)
+      .not("load_kg", "is", null)
+      .gt("load_kg", 0)
+      .limit(5000),
+  );
+  return rows.map((r) => ({ ...r, created_at: r.session.session_date })).sort((a, b) => a.created_at.localeCompare(b.created_at));
+}
+
+// Adds an exercise to a session's workout on the spot: into the last
+// straight-sets block, or a new one if there is none.
+export async function addExerciseToWorkout(workout, exercise) {
+  let block = [...workout.blocks].reverse().find((b) => b.format === "sets");
+  if (!block) {
+    block = check(
+      await supabase.from("workout_blocks").insert({ workout_id: workout.id, position: workout.blocks.length, name: "", format: "sets" }).select().single(),
+    );
+    block.items = [];
+  }
+  check(
+    await supabase.from("block_exercises").insert({
+      block_id: block.id,
+      exercise_id: exercise.id,
+      position: block.items.length,
+      sets: exercise.tracking === "weight_reps" || exercise.tracking === "reps" ? 3 : 1,
+    }),
+  );
+  return getWorkout(workout.id);
+}
+
+export async function listPtNotes(clientId) {
+  return check(await supabase.from("pt_notes").select("*").eq("client_id", clientId).order("created_at", { ascending: false }));
+}
+
+export async function addPtNote(clientId, body) {
+  return check(await supabase.from("pt_notes").insert({ client_id: clientId, body: body.trim() }).select().single());
+}
+
+export async function updatePtNote(id, patch) {
+  return check(await supabase.from("pt_notes").update(patch).eq("id", id).select().single());
+}
+
+export async function deletePtNote(id) {
+  check(await supabase.from("pt_notes").delete().eq("id", id));
+}
+
 // ---------- Exercise videos ----------
 
 export async function uploadExerciseVideo(exerciseId, file) {

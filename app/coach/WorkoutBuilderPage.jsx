@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { ArrowDown, ArrowLeft, ArrowUp, Copy, Plus, Trash2 } from "lucide-react";
 import { copyWorkout, getWorkout, listExercises, saveWorkout } from "../lib/api";
 import { FORMATS, formatClock, parseDuration } from "../lib/format";
+import { useCoachBase } from "../lib/base";
 import { ErrorBox, PageLoader, useAsync } from "../components/ui";
 import ExercisePicker from "../components/ExercisePicker";
 
@@ -171,7 +172,8 @@ export default function WorkoutBuilderPage() {
   const { id } = useParams();
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const back = params.get("back") || "/coach/workouts";
+  const base = useCoachBase();
+  const back = params.get("back") || `${base}/workouts`;
 
   const { data, loading, error, reload } = useAsync(async () => {
     const [workout, exercises] = await Promise.all([getWorkout(id), listExercises()]);
@@ -238,7 +240,7 @@ export default function WorkoutBuilderPage() {
     if (dirty && !(await save())) return;
     try {
       const newId = await copyWorkout(draft.id, true);
-      navigate(`/coach/workouts/${newId}`);
+      navigate(`${base}/workouts/${newId}`);
     } catch (e) {
       setSaveError(e);
     }
@@ -251,11 +253,11 @@ export default function WorkoutBuilderPage() {
   return (
     <div style={{ maxWidth: 860 }}>
       <Link to={back} onClick={goBack} className="row small muted mb-12" style={{ gap: 4 }}>
-        <ArrowLeft size={15} /> {back.startsWith("/coach/programs") ? "Back to program" : "Workout templates"}
+        <ArrowLeft size={15} /> {back.startsWith("/coach/programs") ? "Back to program" : back.startsWith("/pt/sessions") ? "Back to session" : "Workout templates"}
       </Link>
 
       <div className="row wrap gap-6 mb-8">
-        {draft.is_template ? <span className="pill pill-blue">Workout template</span> : <span className="pill">In a program</span>}
+        {draft.is_template ? <span className="pill pill-blue">Workout template</span> : <span className="pill">{back.startsWith("/pt/sessions") ? "In a session" : "In a program"}</span>}
       </div>
       <input
         className="input input-bare h1"

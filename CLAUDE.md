@@ -63,6 +63,17 @@ in `.env.local` as `VITE_DEV_SUPABASE_URL` / `VITE_DEV_SUPABASE_ANON_KEY`,
 - Exercise videos: upload to public `exercise-videos` bucket or paste a YouTube/Vimeo link;
   played in-app by `components/VideoEmbed.jsx`.
 
+## Nordic PT (in-person app, /pt)
+Separate app for face-to-face clients: own page `pt/index.html` (own manifest
+`public/manifest-pt.webmanifest`, yellow icons `public/icons/pt-*`), same bundle —
+`App.jsx` switches on the `/pt` path (coach only). Clients have no login: `pt_clients`,
+`pt_sessions` (session_date; owns a private workout copy like a program day),
+`pt_set_logs`, `pt_block_logs`, `pt_notes` — all coach-only RLS. Pages in `app/pt/`;
+the live session reuses `ExerciseSets`/`BlockResult`/`RestBar` from `client/WorkoutPlayer.jsx`.
+Workout templates + exercise library are shared; shared pages build links with
+`useCoachBase()` (`lib/base.js`). Importing Florian's past logs = backdated
+`pt_sessions` (+ a workout copy per session) and `pt_set_logs`.
+
 ## Roadmap
 - Phase 1 (done): auth, exercise library, workout + program templates,
   calendar programs, logging for all formats, Today screen with companion, XP/streak.

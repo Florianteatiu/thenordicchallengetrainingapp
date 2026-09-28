@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { CalendarDays, CalendarRange, Dumbbell, Inbox, Library, LogOut, UserRound, Users } from "lucide-react";
+import { CalendarDays, CalendarRange, Dumbbell, Handshake, Inbox, Library, LogOut, UserRound, Users } from "lucide-react";
 import { useConversations } from "../lib/useUnread";
 import logo from "../assets/logo.png";
 import { useAuth } from "../auth/AuthProvider";
@@ -39,6 +39,9 @@ export default function CoachLayout() {
           </NavLink>
         ))}
         <div style={{ marginTop: "auto" }} className="col gap-4">
+          <a href="/pt" className="nav-link">
+            <Handshake size={18} /> In-person app
+          </a>
           <NavLink to="/coach/profile" className={linkClass}>
             <Avatar name={profile.full_name} url={profile.avatar_url} size={24} />
             <span className="ellipsis">{profile.full_name || "My profile"}</span>
@@ -58,6 +61,9 @@ export default function CoachLayout() {
               {badge(n.to)}
             </NavLink>
           ))}
+          <a href="/pt" className="nav-link">
+            In-person app
+          </a>
           <NavLink to="/coach/profile" className={linkClass} aria-label="My profile">
             <UserRound size={17} />
           </NavLink>
