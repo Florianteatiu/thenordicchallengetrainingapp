@@ -78,17 +78,17 @@ export const LEGS = [
     to: "Gothenburg",
     totalKm: 513,
     color: "#FFE234",
-    // The run shares Södertälje–Linköping with the bike leg, so its line is
+    // The run shares Nyköping–Linköping with the bike leg, so its line is
     // drawn a touch to the side (`at`) to keep both visible.
     places: [
       { name: "Stockholm", km: 0, lonlat: [18.07, 59.33], story: null },
-      { name: "Södertälje", km: 35, lonlat: [17.63, 59.2], at: [17.6, 59.23], story: null },
-      { name: "Nyköping", km: 109, lonlat: [17.01, 58.75], at: [16.98, 58.79], story: null },
-      { name: "Norrköping", km: 170, lonlat: [16.19, 58.59], at: [16.17, 58.63], story: null },
-      { name: "Linköping", km: 217, lonlat: [15.62, 58.41], at: [15.6, 58.45], story: null },
-      { name: "Mjölby", km: 253, lonlat: [15.13, 58.33], story: null },
-      { name: "Gränna", km: 315, lonlat: [14.47, 58.03], story: null },
-      { name: "Jönköping", km: 355, lonlat: [14.16, 57.78], story: null },
+      { name: "Skanssundet", km: 46, lonlat: [17.693, 59.052], story: null },
+      { name: "Nyköping", km: 108, lonlat: [17.01, 58.75], at: [16.98, 58.79], story: null },
+      { name: "Norrköping", km: 169, lonlat: [16.19, 58.59], at: [16.17, 58.63], story: null },
+      { name: "Linköping", km: 216, lonlat: [15.62, 58.41], at: [15.6, 58.45], story: null },
+      { name: "Mjölby", km: 252, lonlat: [15.13, 58.33], story: null },
+      { name: "Gränna", km: 314, lonlat: [14.47, 58.03], story: null },
+      { name: "Jönköping", km: 354, lonlat: [14.16, 57.78], story: null },
       { name: "Ulricehamn", km: 408, lonlat: [13.41, 57.79], story: null },
       { name: "Borås", km: 443, lonlat: [12.94, 57.72], story: null },
       { name: "Gothenburg", km: 513, lonlat: [11.97, 57.71], story: null },

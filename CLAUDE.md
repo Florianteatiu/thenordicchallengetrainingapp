@@ -46,7 +46,7 @@ in `.env.local` as `VITE_DEV_SUPABASE_URL` / `VITE_DEV_SUPABASE_ANON_KEY`,
   exercises with `journey_kind`). Routes/places/stories in `lib/journey.js`
   — order is always swim, bike, run: swim Gothenburg→Malmö 240 km (west coast), bike
   Malmö→Stockholm 695 km (via Karlskrona, Kalmar, Linköping), run Stockholm→Gothenburg
-  513 km (via Nyköping, Jönköping, Borås). Towns are Florian's; km per town are scaled
+  513 km (via Skanssundet ferry quay, Nyköping, Jönköping, Borås). Towns are Florian's; km per town are scaled
   estimates to his official totals. `via: true` points only shape the line. Florian's
   stories go in each place's `story` field.
 - Challenge calendar: `events` table (coach edits at /coach/calendar, clients see it
