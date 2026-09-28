@@ -1,24 +1,39 @@
 # The Nordic Challenge — Training app
 
-A coach dashboard and athlete training app backed by your existing Supabase
-project — `coaches`, `clients`, `programs`, `exercises`, `logged_sets`,
-`messages`, `mood_checkins`, `progress_photos` — with Row Level Security
-already in place. This app reads and writes those tables directly; it does
-not define its own schema.
+A coach dashboard and athlete training app backed by Supabase — `coaches`,
+`clients`, `programs`, `exercises`, `logged_sets`, `messages`,
+`mood_checkins`, `progress_photos`, `push_subscriptions` — with Row Level
+Security on every table.
 
 ## One-time Supabase setup
 
-Your project already has its schema and RLS policies. Two things were still
-missing for the app to actually work, added by [`supabase/schema.sql`](supabase/schema.sql):
+Run two files, in order, in the Supabase project → **SQL Editor → New
+query** → paste the whole file → **Run**. Both are idempotent and safe to
+re-run.
 
-1. **A policy letting an athlete create their own `clients` row at signup.**
-   There was no `INSERT` policy on `clients` or `coaches` at all, so no
-   account of either kind could ever be created from the app.
-2. **The three storage buckets** the app needs (`avatars`, `progress-photos`,
-   `message-attachments`), with policies scoped to `coaches`/`clients`.
+1. [`supabase/base_schema.sql`](supabase/base_schema.sql) — the base tables,
+   foreign keys, RLS policies and realtime publication for `messages`. Only
+   needed on a fresh, empty project (the app was originally built against a
+   hand-made project whose base schema was never in this repo; this file
+   recreates it).
+2. [`supabase/schema.sql`](supabase/schema.sql) — additive columns and
+   policies on top of the base (athlete self-signup, program templates,
+   active program, weekly target, push subscriptions, …) plus the three
+   storage buckets (`avatars`, `progress-photos`, `message-attachments`).
 
-Run it once: Supabase project → **SQL Editor → New query** → paste the whole
-file → **Run**. It's idempotent, safe to re-run.
+### Push notifications setup
+
+1. Generate a VAPID key pair: `npx web-push generate-vapid-keys`.
+2. Supabase Dashboard → **Edge Functions → Secrets** — add
+   `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY`.
+3. Deploy the function:
+   `npx supabase functions deploy send-push --project-ref <project-ref> --use-api`
+   (or create a function named `send-push` in the dashboard and paste
+   [`supabase/functions/send-push/index.ts`](supabase/functions/send-push/index.ts)).
+4. Put the public key in `.env` as `VITE_VAPID_PUBLIC_KEY`.
+
+Without this the app still works — enabling notifications just shows an
+error, and sending one silently no-ops.
 
 ### Coach setup (one-time, manual)
 
@@ -72,7 +87,8 @@ src/
   pages/AuthPage.jsx Sign in / create account
   coach/             Coach dashboard (client list, program editor, messages, challenge)
   client/            Athlete-facing app (home, workout logging, tips, coach chat)
-supabase/schema.sql  Additive policies + storage buckets on top of your existing schema
+supabase/base_schema.sql  Base tables + RLS (fresh project)
+supabase/schema.sql       Additive columns/policies + storage buckets
 ```
 
 ## How the data model works

@@ -203,7 +203,7 @@ create policy "progress_photos_read" on storage.objects for select
       (storage.foldername(name))[1] = auth.uid()::text
       or exists (
         select 1 from public.clients c
-        where c.id::text = (storage.foldername(name))[1]
+        where c.id::text = (storage.foldername(objects.name))[1]
           and c.coach_id = auth.uid()
       )
     )
@@ -228,7 +228,7 @@ create policy "message_attachments_rw" on storage.objects for all
       (storage.foldername(name))[1] = auth.uid()::text
       or exists (
         select 1 from public.clients c
-        where c.id::text = (storage.foldername(name))[1]
+        where c.id::text = (storage.foldername(objects.name))[1]
           and c.coach_id = auth.uid()
       )
     )
@@ -239,7 +239,7 @@ create policy "message_attachments_rw" on storage.objects for all
       (storage.foldername(name))[1] = auth.uid()::text
       or exists (
         select 1 from public.clients c
-        where c.id::text = (storage.foldername(name))[1]
+        where c.id::text = (storage.foldername(objects.name))[1]
           and c.coach_id = auth.uid()
       )
     )
