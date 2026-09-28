@@ -47,3 +47,20 @@ npm run dev
 
 `VITE_DEV_*` values are only read in dev builds; production always uses
 `app/config.js`.
+
+## Notifications, chat & the rest of phase 2
+
+- Migration `supabase/migrations/20260929000001_phase2_coaching.sql` adds chat,
+  check-ins, the Cross Sweden journey and push subscriptions.
+- Edge function `notify` (`supabase/functions/notify`) sends push notifications.
+  Deploy: `npx supabase functions deploy notify --project-ref <ref> --use-api`.
+  It needs the `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` function secrets
+  (generate a pair with `npx web-push generate-vapid-keys`), and the public key
+  in `app/config.js` (`VAPID_PUBLIC_KEY`). Until then notifications are simply
+  hidden in the app.
+- Training-day reminder: a pg_cron job (`daily-training-reminder`, 06:00 UTC)
+  posts `{"type":"daily"}` to the function with the public anon key; the
+  `reminder_log` table makes sure each client gets at most one per day.
+- Florian's content: exercise videos (Library → edit exercise → Upload video),
+  the welcome video (`WELCOME_VIDEO_URL` in `app/config.js`) and a story per
+  place on the map (`story` fields in `app/lib/journey.js`).

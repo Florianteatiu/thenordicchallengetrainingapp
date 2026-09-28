@@ -5,6 +5,7 @@ import { useAuth } from "../auth/AuthProvider";
 import { updateProfile, uploadAvatar } from "../lib/api";
 import { LEVELS, levelFor, totalXp } from "../lib/gamify";
 import { Avatar, CommitInput, ErrorBox } from "../components/ui";
+import PushToggle from "../components/PushToggle";
 
 export default function MePage() {
   const { profile, setProfile, signOut } = useAuth();
@@ -76,6 +77,10 @@ export default function MePage() {
           })}
         </div>
         <div className="tiny faint mt-8">Every finished workout = 100 XP.</div>
+      </div>
+
+      <div className="section">
+        <PushToggle description="Training reminders and messages from your coach." />
       </div>
 
       <div className="section col gap-16">

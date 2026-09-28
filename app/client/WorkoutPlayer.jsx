@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Check, ChevronDown, ChevronUp, Play, Plus, Timer, Trophy, Video } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, ChevronUp, Play, Plus, Share2, Timer, Trophy, Video } from "lucide-react";
+import { drawSummaryCard, shareImage } from "../lib/shareCard";
 import { useAuth } from "../auth/AuthProvider";
 import {
   completeSession,
@@ -26,6 +27,21 @@ import Companion from "../components/Companion";
 import { ErrorBox, Modal, PageLoader, ProgressBar, useAsync } from "../components/ui";
 import { FEELINGS } from "../components/SessionDetail";
 import BlockTimer from "./BlockTimer";
+import { VideoModal } from "../components/VideoEmbed";
+
+// Opens the exercise's demo video (the coach's own clip) right in the app.
+function VideoButton({ exercise, size = 18 }) {
+  const [open, setOpen] = useState(false);
+  if (!exercise?.video_url) return null;
+  return (
+    <>
+      <button className="icon-btn video-btn" onClick={() => setOpen(true)} aria-label="Watch demo">
+        <Video size={size} />
+      </button>
+      {open && <VideoModal title={exercise.name} url={exercise.video_url} cues={exercise.cues} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
 
 const NIL = "00000000-0000-0000-0000-000000000000";
 const firstNumber = (text) => {
@@ -120,11 +136,7 @@ function ExerciseSets({ item, sets, last, isPR, extra, onAddSet, onToggle, onUpd
           <div className="small yellow mt-4">{prescription(item, "sets", tracking)}</div>
         </div>
         <div className="row gap-4">
-          {ex.video_url && (
-            <a className="icon-btn" href={ex.video_url} target="_blank" rel="noreferrer" aria-label="Watch demo">
-              <Video size={18} />
-            </a>
-          )}
+          <VideoButton exercise={ex} />
           {ex.cues && (
             <button className="icon-btn" onClick={() => setShowCues((s) => !s)} aria-label="Technique cues">
               {showCues ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
@@ -256,9 +268,50 @@ function RestBar({ rest, onDone, onAdd }) {
   );
 }
 
+// ---------- Shareable summary card ----------
+
+function ShareCardModal({ card, onClose }) {
+  const [blob, setBlob] = useState(null);
+  const [url, setUrl] = useState(null);
+  const [status, setStatus] = useState(null);
+
+  useEffect(() => {
+    let objectUrl;
+    drawSummaryCard(card)
+      .then((b) => {
+        setBlob(b);
+        objectUrl = URL.createObjectURL(b);
+        setUrl(objectUrl);
+      })
+      .catch(() => setStatus("Couldn't create the image on this phone."));
+    return () => objectUrl && URL.revokeObjectURL(objectUrl);
+  }, [card]);
+
+  return (
+    <Modal title="Share your workout" onClose={onClose}>
+      <div className="col gap-12" style={{ alignItems: "center" }}>
+        {url ? <img src={url} alt="Workout summary" className="share-preview" /> : <div className="share-preview placeholder" />}
+        {status && <div className="small muted">{status}</div>}
+        <button
+          className="btn btn-primary btn-lg btn-block"
+          disabled={!blob}
+          onClick={async () => {
+            const r = await shareImage(blob);
+            if (r === "downloaded") setStatus("Saved to your downloads. Post it to your story!");
+          }}
+        >
+          <Share2 size={18} /> Share to Instagram & more
+        </button>
+        <div className="tiny faint">Tip: pick Instagram → Stories and tag @thenordicchallenge</div>
+      </div>
+    </Modal>
+  );
+}
+
 // ---------- Celebration ----------
 
 function Celebration({ coach, name, stats, onClose }) {
+  const [sharing, setSharing] = useState(false);
   const pieces = useMemo(
     () =>
       Array.from({ length: 48 }, (_, i) => ({
@@ -291,9 +344,15 @@ function Celebration({ coach, name, stats, onClose }) {
           <ProgressBar value={stats.level.progress} />
         </div>
       )}
-      <button className="btn btn-primary btn-lg mt-24" style={{ minWidth: 220 }} onClick={onClose}>
+      {stats.card && (
+        <button className="btn btn-lg mt-24" style={{ minWidth: 220 }} onClick={() => setSharing(true)}>
+          <Share2 size={18} /> Share my workout
+        </button>
+      )}
+      <button className="btn btn-primary btn-lg mt-12" style={{ minWidth: 220 }} onClick={onClose}>
         Back to today
       </button>
+      {sharing && <ShareCardModal card={stats.card} onClose={() => setSharing(false)} />}
     </div>
   );
 }
@@ -497,8 +556,27 @@ export default function WorkoutPlayer() {
       const level = levelFor(xp);
       const before = levelFor(xp - XP_PER_WORKOUT);
       const streak = program ? workoutStreak(program.days, sessionsByDay(allSessions), todayISO()) : 0;
+      const logged = Object.values(sets).flatMap((bySet) => Object.values(bySet));
+      const volume = Math.round(logged.reduce((n, r) => n + (Number(r.load_kg) || 0) * (Number(r.reps) || 0), 0));
+      const minutes = Math.round((Date.now() - new Date(s.started_at).getTime()) / 60000);
+      const done = logged.length + Object.keys(blockLogs).length;
+      const card = {
+        name: firstName(profile.full_name) || "Athlete",
+        title: workout.title,
+        date: new Date().toLocaleDateString(undefined, { day: "numeric", month: "long" }),
+        level,
+        line: companionLine("finished", { name: firstName(profile.full_name) }),
+        stats: [
+          volume > 0
+            ? { value: volume.toLocaleString("en").replace(/,/g, " "), label: "kg lifted" }
+            : { value: minutes > 0 && minutes < 240 ? String(minutes) : "✓", label: minutes > 0 && minutes < 240 ? "minutes" : "done" },
+          { value: String(done), label: logged.length ? "sets done" : "blocks done" },
+          { value: String(prs.size), label: prs.size === 1 ? "new PR" : "new PRs", highlight: prs.size > 0 },
+          { value: String(streak), label: "workout streak", highlight: streak >= 3 },
+        ],
+      };
       setFinishing(false);
-      setCelebration({ streak, prs: prs.size, level, leveledUp: level.number > before.number });
+      setCelebration({ streak, prs: prs.size, level, leveledUp: level.number > before.number, card });
     } catch (e) {
       setFinishing(false);
       setActionError(e);
@@ -576,11 +654,7 @@ export default function WorkoutPlayer() {
                           <div className="tiny yellow">{prescription(item, block.format, item.exercise?.tracking)}</div>
                           {item.notes && <div className="tiny muted">{item.notes}</div>}
                         </div>
-                        {item.exercise?.video_url && (
-                          <a className="icon-btn" href={item.exercise.video_url} target="_blank" rel="noreferrer" aria-label="Watch demo">
-                            <Video size={17} />
-                          </a>
-                        )}
+                        <VideoButton exercise={item.exercise} size={17} />
                       </div>
                     ))}
                   </div>

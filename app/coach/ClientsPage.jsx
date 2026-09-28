@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, Copy } from "lucide-react";
-import { listActivePrograms, listClients, listRecentSessionsAll } from "../lib/api";
-import { addDays, formatDateTime, mondayOf, programDayDate, todayISO } from "../lib/dates";
+import { AlertTriangle, CalendarX, Check, ClipboardCheck, Copy, Flame, MessageCircle, MoonStar, PartyPopper } from "lucide-react";
+import { listActivePrograms, listClients, listRecentCheckinsAll, listRecentSessionsAll } from "../lib/api";
+import { useConversations } from "../lib/useUnread";
+import { addDays, daysBetween, formatDateTime, mondayOf, programDayDate, todayISO } from "../lib/dates";
+import { firstName } from "../lib/format";
 import { Avatar, ErrorBox, PageLoader, useAsync } from "../components/ui";
 
 function summarize(client, program, sessions, today) {
@@ -25,6 +27,38 @@ function summarize(client, program, sessions, today) {
   return { program, planned: weekDays.length, done, missed, last, doneToday, status };
 }
 
+// Everything that deserves the coach's attention today, most urgent first.
+function attentionItems(rows, conversations, checkins, sessions, today) {
+  const items = [];
+  const weekAgo = addDays(today, -7);
+  for (const r of rows) {
+    const c = r.client;
+    if (c.archived) continue;
+    const name = firstName(c.full_name) || c.full_name;
+    const unread = conversations[c.id]?.unread ?? 0;
+    if (unread) items.push({ key: `m${c.id}`, rank: 0, icon: MessageCircle, tone: "yellow", client: c, text: `${name} sent ${unread === 1 ? "a message" : `${unread} messages`}`, to: `/coach/inbox/${c.id}` });
+    const waiting = checkins.filter((ci) => ci.client_id === c.id && !ci.coach_reply);
+    if (waiting.length) items.push({ key: `c${c.id}`, rank: 1, icon: ClipboardCheck, tone: "yellow", client: c, text: `${name}'s check-in is waiting for your reply`, to: `/coach/inbox/${c.id}?tab=checkins` });
+    const hard = sessions.find((x) => x.client_id === c.id && x.completed_at && x.completed_at.slice(0, 10) >= weekAgo && ((x.rpe ?? 0) >= 9 || (x.feeling ?? 5) <= 2));
+    if (hard)
+      items.push({
+        key: `h${c.id}`,
+        rank: 2,
+        icon: AlertTriangle,
+        tone: "red",
+        client: c,
+        text: `${name} found ${hard.workout_title || "a workout"} very tough${hard.rpe ? ` (RPE ${hard.rpe})` : ""}${hard.notes ? `: “${hard.notes}”` : ""}`,
+        to: `/coach/clients/${c.id}`,
+      });
+    if (r.missed) items.push({ key: `x${c.id}`, rank: 3, icon: CalendarX, tone: "red", client: c, text: `${name} missed ${r.missed === 1 ? "a workout" : `${r.missed} workouts`} this week`, to: `/coach/clients/${c.id}` });
+    const lastDone = r.last?.completed_at?.slice(0, 10);
+    const idle = lastDone ? daysBetween(lastDone, today) : daysBetween(c.created_at.slice(0, 10), today);
+    if (r.program && idle >= 7 && !r.missed) items.push({ key: `i${c.id}`, rank: 4, icon: MoonStar, tone: "", client: c, text: `${name} hasn't trained in ${idle} days`, to: `/coach/inbox/${c.id}` });
+    if (!r.program) items.push({ key: `p${c.id}`, rank: 5, icon: Flame, tone: "yellow", client: c, text: `${name} needs a program`, to: `/coach/clients/${c.id}` });
+  }
+  return items.sort((a, b) => a.rank - b.rank);
+}
+
 export default function ClientsPage() {
   const navigate = useNavigate();
   const [showArchived, setShowArchived] = useState(false);
@@ -32,12 +66,13 @@ export default function ClientsPage() {
   const today = todayISO();
 
   const { data, loading, error, reload } = useAsync(async () => {
-    const [clients, programs, sessions] = await Promise.all([
+    const [clients, programs, sessions, checkins] = await Promise.all([
       listClients(),
       listActivePrograms(),
       listRecentSessionsAll(addDays(mondayOf(today), -21)),
+      listRecentCheckinsAll(addDays(today, -21)),
     ]);
-    return { clients, programs, sessions };
+    return { clients, programs, sessions, checkins };
   }, []);
 
   const rows = useMemo(() => {
@@ -46,6 +81,12 @@ export default function ClientsPage() {
       .filter((c) => showArchived || !c.archived)
       .map((c) => ({ client: c, ...summarize(c, data.programs.find((p) => p.client_id === c.id), data.sessions, today) }));
   }, [data, showArchived, today]);
+
+  const conversations = useConversations();
+  const attention = useMemo(
+    () => (data ? attentionItems(rows, conversations, data.checkins, data.sessions, today) : []),
+    [rows, conversations, data, today],
+  );
 
   const counts = useMemo(
     () => ({
@@ -92,6 +133,29 @@ export default function ClientsPage() {
           <div className="stat-label">Need a program</div>
         </div>
       </div>
+
+      {rows.length > 0 && (
+        <div className="section" style={{ marginTop: 0 }}>
+          <div className="eyebrow mb-8">Needs your attention</div>
+          {attention.length === 0 ? (
+            <div className="card row">
+              <PartyPopper size={20} className="green" />
+              <div className="small">All good. Everyone's on track and nobody is waiting on you.</div>
+            </div>
+          ) : (
+            <div className="list">
+              {attention.slice(0, 8).map((a) => (
+                <button key={a.key} className="card card-tight card-link attention-row" onClick={() => navigate(a.to)}>
+                  <a.icon size={18} className={a.tone} />
+                  <Avatar name={a.client.full_name} url={a.client.avatar_url} size={28} />
+                  <span className="small grow" style={{ textAlign: "left" }}>{a.text}</span>
+                </button>
+              ))}
+              {attention.length > 8 && <div className="tiny faint">+ {attention.length - 8} more</div>}
+            </div>
+          )}
+        </div>
+      )}
 
       {rows.length === 0 ? (
         <div className="empty">

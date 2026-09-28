@@ -15,6 +15,11 @@ import {
 import { formatDate, formatDateTime, nextMonday } from "../lib/dates";
 import { Avatar, CommitInput, ErrorBox, Modal, PageLoader, useAsync } from "../components/ui";
 import SessionDetailModal, { FEELINGS } from "../components/SessionDetail";
+import { useAuth } from "../auth/AuthProvider";
+import Chat from "../components/Chat";
+import JourneyView from "../components/JourneyView";
+import LiftProgress from "../components/LiftProgress";
+import { ClientCheckins } from "./InboxPage";
 
 const STATUS_TONE = { active: "pill-green", draft: "pill-yellow", completed: "" };
 
@@ -86,6 +91,7 @@ function AssignModal({ clientId, onClose, onDone }) {
 export default function ClientPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { profile: me } = useAuth();
   const [tab, setTab] = useState("programs");
   const [assigning, setAssigning] = useState(false);
   const [openSession, setOpenSession] = useState(null);
@@ -146,6 +152,10 @@ export default function ClientPage() {
         {[
           ["programs", "Programs"],
           ["history", `Workouts (${sessions.length})`],
+          ["chat", "Chat"],
+          ["checkins", "Check-ins"],
+          ["lifts", "Lifts"],
+          ["journey", "Cross Sweden"],
           ["profile", "Profile & notes"],
         ].map(([k, label]) => (
           <button key={k} className={tab === k ? "active" : ""} onClick={() => setTab(k)}>
@@ -228,6 +238,11 @@ export default function ClientPage() {
             ))}
           </div>
         ))}
+
+      {tab === "chat" && <Chat clientId={id} me={me} other={client} className="chat-embedded" emptyText={`No messages with ${client.full_name} yet.`} />}
+      {tab === "checkins" && <ClientCheckins clientId={id} />}
+      {tab === "lifts" && <LiftProgress clientId={id} />}
+      {tab === "journey" && <JourneyView clientId={id} />}
 
       {tab === "profile" && (
         <div className="col gap-16" style={{ maxWidth: 640 }}>

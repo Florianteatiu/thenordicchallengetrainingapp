@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Link, useOutletContext } from "react-router-dom";
-import { Check, ChevronRight, Flame, Play, Trophy } from "lucide-react";
+import { Check, ChevronRight, ClipboardCheck, Flame, Play, Trophy } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
 import { DAY_LETTER, addDays, formatDate, greetingForNow, mondayOf, todayISO } from "../lib/dates";
 import { firstName, formatLabel } from "../lib/format";
@@ -8,6 +8,7 @@ import { dayStatus, levelFor, totalXp, workoutStreak } from "../lib/gamify";
 import { companionLine, MOODS } from "../lib/companion";
 import Companion from "../components/Companion";
 import { ProgressBar } from "../components/ui";
+import { checkinWeek, isCheckinTime } from "../components/Checkins";
 
 export function WorkoutCard({ day, status, big }) {
   const done = status === "done";
@@ -43,7 +44,7 @@ export function WorkoutCard({ day, status, big }) {
 
 export default function TodayPage() {
   const { profile } = useAuth();
-  const { program, sessions, sessionMap, coach } = useOutletContext();
+  const { program, sessions, sessionMap, coach, checkins } = useOutletContext();
   const today = todayISO();
   const name = firstName(profile.full_name);
 
@@ -84,6 +85,10 @@ export default function TodayPage() {
     return { todays, upcoming, streak, xp, level, week, weekDone, situation };
   }, [program, sessions, sessionMap, today]);
 
+  const week = checkinWeek(today);
+  const checkinDue = isCheckinTime(today) && !(checkins ?? []).some((c) => c.week_start === week);
+  const newReply = (checkins ?? []).find((c) => c.coach_reply && c.coach_replied_at && Date.now() - new Date(c.coach_replied_at) < 3 * 86400000);
+
   const line = companionLine(view.situation, { name, streak: view.streak, workout: view.todays[0]?.workout?.title ?? "your session" });
 
   return (
@@ -101,6 +106,19 @@ export default function TodayPage() {
       <Companion mood={MOODS[view.situation]} coachAvatar={coach?.avatar_url}>
         {line}
       </Companion>
+
+      {(checkinDue || newReply) && (
+        <Link to="/app/checkin" className="card card-link row mt-16" style={{ display: "flex", borderColor: "rgba(255,226,52,0.35)" }}>
+          <div className="leg-icon small" style={{ background: "var(--yellow)" }}>
+            <ClipboardCheck size={18} />
+          </div>
+          <div className="grow">
+            <div style={{ fontWeight: 800 }}>{checkinDue ? "Weekly check-in" : `${coach?.full_name?.split(" ")[0] || "Your coach"} replied to your check-in`}</div>
+            <div className="small muted">{checkinDue ? "2 minutes: how did your week really go?" : "Tap to read it."}</div>
+          </div>
+          <ChevronRight size={20} className="faint" />
+        </Link>
+      )}
 
       <div className="section">
         {view.todays.length > 0 ? (

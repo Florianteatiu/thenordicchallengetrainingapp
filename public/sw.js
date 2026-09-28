@@ -17,6 +17,8 @@ self.addEventListener("push", (event) => {
       body: data.body || "",
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
+      tag: data.tag,
+      renotify: Boolean(data.tag),
       data: { url: data.url || "/" },
     })
   );
@@ -24,11 +26,13 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = event.notification.data?.url || "/";
+  const url = new URL(event.notification.data?.url || "/", self.location.origin).href;
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
       for (const client of windowClients) {
-        if ("focus" in client) return client.focus();
+        if ("focus" in client) {
+          return client.focus().then((c) => ("navigate" in c ? c.navigate(url) : c));
+        }
       }
       if (self.clients.openWindow) return self.clients.openWindow(url);
     })
