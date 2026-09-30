@@ -568,7 +568,7 @@ export async function listPtSessions(clientId) {
   return check(
     await supabase
       .from("pt_sessions")
-      .select("*, workout:workouts(title)")
+      .select("*, workout:workouts(title), group_session:pt_group_sessions(group_name)")
       .eq("client_id", clientId)
       .order("session_date", { ascending: false })
       .order("started_at", { ascending: false })
@@ -684,6 +684,140 @@ export async function addExerciseToWorkout(workout, exercise) {
     }),
   );
   return getWorkout(workout.id);
+}
+
+// ---------- Nordic PT: small groups ----------
+
+export async function listPtGroups() {
+  const [groups, sessions] = await Promise.all([
+    supabase.from("pt_groups").select("*, members:pt_group_members(client:pt_clients(id, full_name))").order("name"),
+    supabase.from("pt_group_sessions").select("group_id, session_date").order("session_date", { ascending: false }).limit(2000),
+  ]);
+  const last = {};
+  for (const s of check(sessions)) if (s.group_id && !last[s.group_id]) last[s.group_id] = s.session_date;
+  return check(groups).map((g) => ({ ...g, members: g.members.map((m) => m.client), lastSession: last[g.id] ?? null }));
+}
+
+export async function getPtGroup(id) {
+  const [group, sessions] = await Promise.all([
+    supabase.from("pt_groups").select("*, members:pt_group_members(position, client:pt_clients(*))").eq("id", id).single(),
+    supabase
+      .from("pt_group_sessions")
+      .select("*, sessions:pt_sessions(id, client_id, workout_title, workout_id)")
+      .eq("group_id", id)
+      .order("session_date", { ascending: false })
+      .order("started_at", { ascending: false })
+      .limit(200),
+  ]);
+  const g = check(group);
+  return {
+    ...g,
+    members: [...g.members].sort((a, b) => a.position - b.position || a.client.full_name.localeCompare(b.client.full_name)).map((m) => m.client),
+    sessions: check(sessions),
+  };
+}
+
+export async function savePtGroup(group) {
+  const { id, ...fields } = group;
+  if (id) return check(await supabase.from("pt_groups").update(fields).eq("id", id).select().single());
+  return check(await supabase.from("pt_groups").insert(fields).select().single());
+}
+
+export async function deletePtGroup(id) {
+  check(await supabase.from("pt_groups").delete().eq("id", id));
+}
+
+export async function setPtGroupMembers(groupId, clientIds) {
+  check(await supabase.from("pt_group_members").delete().eq("group_id", groupId));
+  if (clientIds.length)
+    check(await supabase.from("pt_group_members").insert(clientIds.map((client_id, position) => ({ group_id: groupId, client_id, position }))));
+}
+
+// Starts a group session: one shared copy per workout option, and one
+// ordinary pt_session per person present. `options` = [{ fromWorkoutId, clientIds }]
+// (one or two of them: workout A and optionally B).
+export async function startPtGroupSession({ group, date, options }) {
+  const gs = check(await supabase.from("pt_group_sessions").insert({ group_id: group.id, group_name: group.name, session_date: date }).select().single());
+  try {
+    for (const opt of options) {
+      if (!opt.clientIds.length) continue;
+      const workout = opt.fromWorkoutId ? await getWorkout(await copyWorkout(opt.fromWorkoutId, false)) : await createWorkout({ title: `${group.name} session` });
+      check(
+        await supabase.from("pt_sessions").insert(
+          opt.clientIds.map((client_id) => ({
+            client_id,
+            session_date: date,
+            workout_id: workout.id,
+            workout_title: workout.title,
+            group_session_id: gs.id,
+          })),
+        ),
+      );
+    }
+  } catch (e) {
+    await supabase.from("pt_group_sessions").delete().eq("id", gs.id);
+    throw e;
+  }
+  return gs;
+}
+
+// Everything the live group screen needs, in one go.
+export async function getPtGroupSession(id) {
+  const [gs, members] = await Promise.all([
+    supabase.from("pt_group_sessions").select("*").eq("id", id).single(),
+    supabase.from("pt_sessions").select("*, client:pt_clients(id, full_name, injuries)").eq("group_session_id", id).order("started_at"),
+  ]);
+  const session = check(gs);
+  const people = check(members).sort((a, b) => a.client.full_name.localeCompare(b.client.full_name));
+  const workoutIds = [...new Set(people.map((p) => p.workout_id).filter(Boolean))];
+  const ids = people.map((p) => p.id);
+  const [workouts, sets, blocks] = await Promise.all([
+    Promise.all(workoutIds.map((w) => getWorkout(w))),
+    ids.length ? supabase.from("pt_set_logs").select("*").in("session_id", ids) : { data: [] },
+    ids.length ? supabase.from("pt_block_logs").select("*").in("session_id", ids) : { data: [] },
+  ]);
+  // Each person's last numbers, from any earlier session (1-to-1 or group).
+  const last = {};
+  await Promise.all(
+    people.map(async (p) => {
+      const w = workouts.find((x) => x.id === p.workout_id);
+      const exerciseIds = [...new Set((w?.blocks ?? []).flatMap((b) => b.items.map((i) => i.exercise_id)))];
+      last[p.id] = await getPtLastPerformance(p.client_id, exerciseIds, p.id);
+    }),
+  );
+  return { session, people, workouts, sets: check(sets), blocks: check(blocks), last };
+}
+
+export async function addPtGroupSessionMember({ groupSession, clientId, workout }) {
+  return check(
+    await supabase
+      .from("pt_sessions")
+      .insert({
+        client_id: clientId,
+        session_date: groupSession.session_date,
+        workout_id: workout.id,
+        workout_title: workout.title,
+        group_session_id: groupSession.id,
+        completed_at: groupSession.completed_at,
+      })
+      .select("*, client:pt_clients(id, full_name, injuries)")
+      .single(),
+  );
+}
+
+export async function updatePtGroupSession(id, patch) {
+  return check(await supabase.from("pt_group_sessions").update(patch).eq("id", id).select().single());
+}
+
+// Marks the group session and everyone's session in it as done (or re-opens).
+export async function setPtGroupSessionDone(id, done) {
+  const at = done ? new Date().toISOString() : null;
+  check(await supabase.from("pt_sessions").update({ completed_at: at }).eq("group_session_id", id));
+  return updatePtGroupSession(id, { completed_at: at });
+}
+
+export async function deletePtGroupSession(id) {
+  check(await supabase.from("pt_group_sessions").delete().eq("id", id));
 }
 
 export async function listPtNotes(clientId) {

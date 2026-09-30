@@ -30,7 +30,7 @@ import BlockTimer from "./BlockTimer";
 import { VideoModal } from "../components/VideoEmbed";
 
 // Opens the exercise's demo video (the coach's own clip) right in the app.
-function VideoButton({ exercise, size = 18 }) {
+export function VideoButton({ exercise, size = 18 }) {
   const [open, setOpen] = useState(false);
   if (!exercise?.video_url) return null;
   return (
@@ -110,13 +110,18 @@ const HEADS = {
   distance_time: ["km", "time"],
 };
 
-// ---------- Exercise within a straight-sets block ----------
+// ---------- Set grid (shared by the client player and Nordic PT) ----------
 
-// `label`/`restSec`/`nextLabel` come from setItemProps() for supersets.
-export function ExerciseSets({ item, sets, last, isPR, extra, onAddSet, onToggle, onUpdate, label, restSec, nextLabel }) {
-  const [showCues, setShowCues] = useState(false);
-  const ex = item.exercise ?? {};
-  const tracking = ex.tracking ?? "weight_reps";
+export function lastTimeText(last) {
+  return last.sets
+    .map((s) => [s.load_kg != null && `${+s.load_kg}kg`, s.reps != null && `${s.reps}`, s.distance_m != null && formatDistance(s.distance_m), s.duration_sec != null && formatClock(s.duration_sec)].filter(Boolean).join("×"))
+    .join(", ");
+}
+
+// The header row + one row per set + "Add set" for one exercise and one
+// person. `sets` = { setNumber -> logged row }.
+export function SetsGrid({ item, sets, last, extra, onAddSet, onToggle, onUpdate, restSec }) {
+  const tracking = item.exercise?.tracking ?? "weight_reps";
   const count = Math.max(item.sets || 1, ...Object.keys(sets).map(Number)) + extra;
 
   const defaultsFor = (n) => {
@@ -130,41 +135,7 @@ export function ExerciseSets({ item, sets, last, isPR, extra, onAddSet, onToggle
   };
 
   return (
-    <div className="exercise">
-      <div className="row between">
-        <div className="grow">
-          <div className="row gap-6 wrap">
-            {label && <span className="letter" style={{ width: "auto", minWidth: 28, padding: "0 6px", height: 24, fontSize: 13 }}>{label}</span>}
-            <span className="h3">{ex.name}</span>
-            {isPR && (
-              <span className="pill pill-yellow">
-                <Trophy size={11} /> New PR!
-              </span>
-            )}
-          </div>
-          <div className="small yellow mt-4">{prescription(restSec === undefined ? item : { ...item, rest_sec: restSec }, "sets", tracking)}</div>
-          {nextLabel && <div className="tiny muted mt-4">Then straight into {nextLabel}, no rest</div>}
-        </div>
-        <div className="row gap-4">
-          <VideoButton exercise={ex} />
-          {ex.cues && (
-            <button className="icon-btn" onClick={() => setShowCues((s) => !s)} aria-label="Technique cues">
-              {showCues ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-            </button>
-          )}
-        </div>
-      </div>
-      {item.notes && <div className="small mt-8" style={{ borderLeft: "3px solid var(--yellow)", paddingLeft: 8 }}>{item.notes}</div>}
-      {showCues && <div className="small muted mt-8">{ex.cues}</div>}
-      {last && (
-        <div className="tiny faint mt-8">
-          Last time:{" "}
-          {last.sets
-            .map((s) => [s.load_kg != null && `${+s.load_kg}kg`, s.reps != null && `${s.reps}`, s.distance_m != null && formatDistance(s.distance_m), s.duration_sec != null && formatClock(s.duration_sec)].filter(Boolean).join("×"))
-            .join(", ")}
-        </div>
-      )}
-
+    <>
       <div className="set-grid">
         <div className={`set-row${HEADS[tracking].length === 2 ? "" : " one"}`}>
           <div className="set-head">Set</div>
@@ -190,6 +161,63 @@ export function ExerciseSets({ item, sets, last, isPR, extra, onAddSet, onToggle
       <button className="link-btn small mt-8 row gap-4" onClick={onAddSet}>
         <Plus size={14} /> Add set
       </button>
+    </>
+  );
+}
+
+// Name, prescription, coach note, video and cues for one exercise.
+export function ExerciseHeader({ item, label, restSec, nextLabel, badge }) {
+  const [showCues, setShowCues] = useState(false);
+  const ex = item.exercise ?? {};
+  const tracking = ex.tracking ?? "weight_reps";
+  return (
+    <>
+      <div className="row between">
+        <div className="grow">
+          <div className="row gap-6 wrap">
+            {label && <span className="letter" style={{ width: "auto", minWidth: 28, padding: "0 6px", height: 24, fontSize: 13 }}>{label}</span>}
+            <span className="h3">{ex.name}</span>
+            {badge}
+          </div>
+          <div className="small yellow mt-4">{prescription(restSec === undefined ? item : { ...item, rest_sec: restSec }, "sets", tracking)}</div>
+          {nextLabel && <div className="tiny muted mt-4">Then straight into {nextLabel}, no rest</div>}
+        </div>
+        <div className="row gap-4">
+          <VideoButton exercise={ex} />
+          {ex.cues && (
+            <button className="icon-btn" onClick={() => setShowCues((s) => !s)} aria-label="Technique cues">
+              {showCues ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </button>
+          )}
+        </div>
+      </div>
+      {item.notes && <div className="small mt-8" style={{ borderLeft: "3px solid var(--yellow)", paddingLeft: 8 }}>{item.notes}</div>}
+      {showCues && <div className="small muted mt-8">{ex.cues}</div>}
+    </>
+  );
+}
+
+// ---------- Exercise within a straight-sets block ----------
+
+// `label`/`restSec`/`nextLabel` come from setItemProps() for supersets.
+export function ExerciseSets({ item, sets, last, isPR, extra, onAddSet, onToggle, onUpdate, label, restSec, nextLabel }) {
+  return (
+    <div className="exercise">
+      <ExerciseHeader
+        item={item}
+        label={label}
+        restSec={restSec}
+        nextLabel={nextLabel}
+        badge={
+          isPR && (
+            <span className="pill pill-yellow">
+              <Trophy size={11} /> New PR!
+            </span>
+          )
+        }
+      />
+      {last && <div className="tiny faint mt-8">Last time: {lastTimeText(last)}</div>}
+      <SetsGrid item={item} sets={sets} last={last} extra={extra} onAddSet={onAddSet} onToggle={onToggle} onUpdate={onUpdate} restSec={restSec} />
     </div>
   );
 }
