@@ -19,8 +19,8 @@ import {
   upsertSetLog,
 } from "../lib/api";
 import { formatDateTime, programDayDate, todayISO } from "../lib/dates";
-import { blockSummary, firstName, formatClock, formatDistance, formatLabel, numOrNull, parseDuration, prescription } from "../lib/format";
-import { XP_PER_WORKOUT, levelFor, sessionsByDay, totalXp, workoutStreak } from "../lib/gamify";
+import { blockSummary, firstName, formatClock, formatDistance, formatLabel, isSetBased, numOrNull, parseDuration, prescription, setItemProps } from "../lib/format";
+import { POINTS, XP_PER_WORKOUT, levelFor, sessionsByDay, totalXp, workoutStreak } from "../lib/gamify";
 import { companionLine, MOODS } from "../lib/companion";
 import { go, unlockAudio, vibrate } from "../lib/sound";
 import Companion from "../components/Companion";
@@ -60,15 +60,15 @@ function SetRow({ n, tracking, logged, defaults, onToggle, onUpdate }) {
   const done = Boolean(logged);
 
   const values = () => ({
-    load_kg: tracking === "weight_reps" ? numOrNull(load) ?? defaults.load : null,
+    load_kg: tracking === "weight_reps" || tracking === "weight_time" ? numOrNull(load) ?? defaults.load : null,
     reps: tracking === "weight_reps" || tracking === "reps" ? numOrNull(reps) ?? defaults.reps : null,
-    duration_sec: tracking === "time" || tracking === "distance_time" ? parseDuration(time) ?? defaults.duration : null,
+    duration_sec: tracking === "time" || tracking === "distance_time" || tracking === "weight_time" ? parseDuration(time) ?? defaults.duration : null,
     distance_m: tracking === "distance_time" ? (numOrNull(km) != null ? Math.round(numOrNull(km) * 1000) : defaults.distance) : null,
   });
 
   const blur = () => done && onUpdate(values());
   const ph = (v) => (v == null ? "–" : String(v));
-  const two = tracking === "weight_reps" || tracking === "distance_time";
+  const two = tracking === "weight_reps" || tracking === "distance_time" || tracking === "weight_time";
 
   return (
     <div className={`set-row${two ? "" : " one"}${done ? " done" : ""}`}>
@@ -77,6 +77,12 @@ function SetRow({ n, tracking, logged, defaults, onToggle, onUpdate }) {
         <>
           <input className="input" inputMode="decimal" placeholder={ph(defaults.load)} value={load} onChange={(e) => setLoad(e.target.value)} onBlur={blur} />
           <input className="input" inputMode="numeric" placeholder={ph(defaults.reps)} value={reps} onChange={(e) => setReps(e.target.value)} onBlur={blur} />
+        </>
+      )}
+      {tracking === "weight_time" && (
+        <>
+          <input className="input" inputMode="decimal" placeholder={ph(defaults.load)} value={load} onChange={(e) => setLoad(e.target.value)} onBlur={blur} />
+          <input className="input" inputMode="numeric" placeholder={defaults.duration ? formatClock(defaults.duration) : "0:30"} value={time} onChange={(e) => setTime(e.target.value)} onBlur={blur} />
         </>
       )}
       {tracking === "reps" && <input className="input" inputMode="numeric" placeholder={ph(defaults.reps)} value={reps} onChange={(e) => setReps(e.target.value)} onBlur={blur} />}
@@ -98,6 +104,7 @@ function SetRow({ n, tracking, logged, defaults, onToggle, onUpdate }) {
 
 const HEADS = {
   weight_reps: ["kg", "reps"],
+  weight_time: ["kg", "time"],
   reps: ["reps"],
   time: ["time"],
   distance_time: ["km", "time"],
@@ -105,7 +112,8 @@ const HEADS = {
 
 // ---------- Exercise within a straight-sets block ----------
 
-export function ExerciseSets({ item, sets, last, isPR, extra, onAddSet, onToggle, onUpdate }) {
+// `label`/`restSec`/`nextLabel` come from setItemProps() for supersets.
+export function ExerciseSets({ item, sets, last, isPR, extra, onAddSet, onToggle, onUpdate, label, restSec, nextLabel }) {
   const [showCues, setShowCues] = useState(false);
   const ex = item.exercise ?? {};
   const tracking = ex.tracking ?? "weight_reps";
@@ -126,6 +134,7 @@ export function ExerciseSets({ item, sets, last, isPR, extra, onAddSet, onToggle
       <div className="row between">
         <div className="grow">
           <div className="row gap-6 wrap">
+            {label && <span className="letter" style={{ width: "auto", minWidth: 28, padding: "0 6px", height: 24, fontSize: 13 }}>{label}</span>}
             <span className="h3">{ex.name}</span>
             {isPR && (
               <span className="pill pill-yellow">
@@ -133,7 +142,8 @@ export function ExerciseSets({ item, sets, last, isPR, extra, onAddSet, onToggle
               </span>
             )}
           </div>
-          <div className="small yellow mt-4">{prescription(item, "sets", tracking)}</div>
+          <div className="small yellow mt-4">{prescription(restSec === undefined ? item : { ...item, rest_sec: restSec }, "sets", tracking)}</div>
+          {nextLabel && <div className="tiny muted mt-4">Then straight into {nextLabel}, no rest</div>}
         </div>
         <div className="row gap-4">
           <VideoButton exercise={ex} />
@@ -172,7 +182,7 @@ export function ExerciseSets({ item, sets, last, isPR, extra, onAddSet, onToggle
             tracking={tracking}
             logged={sets[n]}
             defaults={defaultsFor(n)}
-            onToggle={(v) => onToggle(item, n, v)}
+            onToggle={(v) => onToggle(item, n, v, restSec)}
             onUpdate={(v) => onUpdate(item, n, v)}
           />
         ))}
@@ -302,7 +312,7 @@ function ShareCardModal({ card, onClose }) {
         >
           <Share2 size={18} /> Share to Instagram & more
         </button>
-        <div className="tiny faint">Tip: pick Instagram → Stories and tag @thenordicchallenge</div>
+        <div className="tiny faint">Tip: pick Instagram → Stories and tag @florianteatiu</div>
       </div>
     </Modal>
   );
@@ -330,7 +340,7 @@ function Celebration({ coach, name, stats, onClose }) {
       <Companion large mood={MOODS.finished} coachAvatar={coach?.avatar_url}>
         {companionLine("finished", { name })}
       </Companion>
-      <div className="xp mt-24">+{XP_PER_WORKOUT} XP</div>
+      <div className="xp mt-24">+{XP_PER_WORKOUT} {POINTS}</div>
       <div className="row gap-16 mt-12 muted">
         {stats.streak > 0 && <span>🔥 {stats.streak} in a row</span>}
         {stats.prs > 0 && <span>🏆 {stats.prs} new PR{stats.prs > 1 ? "s" : ""}</span>}
@@ -339,9 +349,10 @@ function Celebration({ coach, name, stats, onClose }) {
         <div style={{ width: "100%", maxWidth: 320 }} className="mt-24">
           <div className="row between small mb-8">
             <span style={{ fontWeight: 700 }}>{stats.leveledUp ? `Level up! ${stats.level.name}` : stats.level.name}</span>
-            <span className="faint">{stats.level.xp} XP</span>
+            <span className="faint">{stats.level.xp} {POINTS}</span>
           </div>
           <ProgressBar value={stats.level.progress} />
+          {stats.leveledUp && stats.level.meaning && <div className="small muted mt-8 center">{stats.level.meaning}</div>}
         </div>
       )}
       {stats.card && (
@@ -475,7 +486,7 @@ export default function WorkoutPlayer() {
   let planned = 0;
   let doneCount = 0;
   for (const b of workout.blocks) {
-    if (b.format === "sets") {
+    if (isSetBased(b.format)) {
       for (const it of b.items) {
         planned += it.sets || 1;
         doneCount += Math.min(it.sets || 1, Object.keys(sets[it.id] ?? {}).length);
@@ -499,7 +510,7 @@ export default function WorkoutPlayer() {
     }
   }
 
-  async function toggleSet(item, n, values) {
+  async function toggleSet(item, n, values, restSec = item.rest_sec) {
     unlockAudio();
     setActionError(null);
     const existing = sets[item.id]?.[n];
@@ -515,7 +526,7 @@ export default function WorkoutPlayer() {
         const s = await ensureSession();
         const row = { session_id: s.id, block_exercise_id: item.id, exercise_id: item.exercise_id, set_number: n, done: true, ...values };
         setSets((prev) => ({ ...prev, [item.id]: { ...(prev[item.id] ?? {}), [n]: { ...row, id: "pending" } } }));
-        if (item.rest_sec) setRest({ endsAt: Date.now() + item.rest_sec * 1000 });
+        if (restSec) setRest({ endsAt: Date.now() + restSec * 1000 });
         const saved = await upsertSetLog(row);
         setSets((prev) => ({ ...prev, [item.id]: { ...(prev[item.id] ?? {}), [n]: saved } }));
       }
@@ -623,17 +634,19 @@ export default function WorkoutPlayer() {
               <div className="letter">{String.fromCharCode(65 + bi)}</div>
               <div className="grow">
                 <div className="h3">{block.name || formatLabel(block.format)}</div>
-                {block.format !== "sets" && <div className="tiny muted">{formatLabel(block.format)} · {blockSummary(block)}</div>}
+                {block.format === "superset" && <div className="tiny muted">Superset · do them back to back, rest after the round</div>}
+                {!isSetBased(block.format) && <div className="tiny muted">{formatLabel(block.format)} · {blockSummary(block)}</div>}
               </div>
-              {block.format !== "sets" && blockLogs[block.id] && <Check size={20} className="green" />}
+              {!isSetBased(block.format) && blockLogs[block.id] && <Check size={20} className="green" />}
             </div>
 
             {block.notes && <div className="exercise small muted">{block.notes}</div>}
 
-            {block.format === "sets"
-              ? block.items.map((item) => (
+            {isSetBased(block.format)
+              ? block.items.map((item, ii) => (
                   <ExerciseSets
                     key={item.id}
+                    {...setItemProps(block, ii, String.fromCharCode(65 + bi))}
                     item={item}
                     sets={sets[item.id] ?? {}}
                     last={last[item.exercise_id]}

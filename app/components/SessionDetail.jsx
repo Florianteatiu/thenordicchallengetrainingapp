@@ -3,7 +3,7 @@ import { MessageCircle, Send } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
 import { getSessionDetail, listSessionComments, sendMessage } from "../lib/api";
 import { formatDateTime } from "../lib/dates";
-import { blockSummary, formatClock, formatDistance, formatLabel } from "../lib/format";
+import { blockSummary, formatClock, formatDistance, formatLabel, isSetBased } from "../lib/format";
 import { ErrorBox, Modal, Spinner, useAsync } from "./ui";
 
 export const FEELINGS = ["😫", "😕", "😐", "🙂", "🤩"];
@@ -124,10 +124,10 @@ export default function SessionDetailModal({ sessionId, onClose }) {
                   <div className="letter">{String.fromCharCode(65 + bi)}</div>
                   <div className="grow">
                     <div className="h3">{block.name || formatLabel(block.format)}</div>
-                    {block.format !== "sets" && <div className="tiny muted">{blockSummary(block)}</div>}
+                    {!isSetBased(block.format) && <div className="tiny muted">{blockSummary(block)}</div>}
                   </div>
                 </div>
-                {block.format !== "sets" && (
+                {!isSetBased(block.format) && (
                   <div className="exercise small">
                     {blockLog ? (
                       <span className="green">
@@ -146,7 +146,7 @@ export default function SessionDetailModal({ sessionId, onClose }) {
                     <div className="faint mt-4">{block.items.map((i) => i.exercise?.name).join(", ")}</div>
                   </div>
                 )}
-                {block.format === "sets" &&
+                {isSetBased(block.format) &&
                   block.items.map((item) => {
                     const sets = data.sets.filter((s) => s.block_exercise_id === item.id).sort((a, b) => a.set_number - b.set_number);
                     return (

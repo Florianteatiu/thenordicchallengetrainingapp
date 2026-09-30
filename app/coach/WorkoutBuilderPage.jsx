@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowDown, ArrowLeft, ArrowUp, Copy, Plus, Trash2 } from "lucide-react";
 import { copyWorkout, getWorkout, listExercises, saveWorkout } from "../lib/api";
-import { FORMATS, formatClock, parseDuration } from "../lib/format";
+import { FORMATS, formatClock, isSetBased, parseDuration } from "../lib/format";
 import { useCoachBase } from "../lib/base";
 import { ErrorBox, PageLoader, useAsync } from "../components/ui";
 import ExercisePicker from "../components/ExercisePicker";
@@ -11,6 +11,7 @@ const uid = () => crypto.randomUUID();
 
 const FORMAT_DEFAULTS = {
   sets: { rounds: null, work_sec: null, rest_sec: null, time_cap_sec: null },
+  superset: { rounds: null, work_sec: null, rest_sec: null, time_cap_sec: null },
   circuit: { rounds: 3, rest_sec: 60, work_sec: null, time_cap_sec: null },
   intervals: { rounds: 8, work_sec: 40, rest_sec: 20, time_cap_sec: null },
   amrap: { time_cap_sec: 600, rounds: null, work_sec: null, rest_sec: null },
@@ -23,12 +24,12 @@ function newItem(exercise, format) {
     id: uid(),
     exercise_id: exercise.id,
     exercise,
-    sets: format === "sets" ? 3 : null,
+    sets: isSetBased(format) ? 3 : null,
     reps: format !== "intervals" && (t === "weight_reps" || t === "reps") ? "10" : "",
     load: "",
-    duration_sec: t === "time" ? 30 : null,
+    duration_sec: t === "time" || t === "weight_time" ? 30 : null,
     distance_m: null,
-    rest_sec: format === "sets" ? 90 : null,
+    rest_sec: format === "sets" ? 90 : null, // supersets: set once for the round
     tempo: "",
     notes: "",
   };
@@ -73,18 +74,20 @@ function F({ label, children, wide }) {
   );
 }
 
-function ItemFields({ item, format, onChange }) {
+// `roundRest`: for supersets, the rest after the whole round (shown on the last
+// exercise only; null on the others).
+function ItemFields({ item, format, onChange, roundRest }) {
   const t = item.exercise?.tracking ?? "weight_reps";
   const set = (patch) => onChange({ ...item, ...patch });
   const showReps = t === "weight_reps" || t === "reps";
-  const showLoad = t === "weight_reps" || format !== "sets";
-  const showTime = t === "time" || t === "distance_time";
+  const showLoad = t === "weight_reps" || t === "weight_time" || !isSetBased(format);
+  const showTime = t === "time" || t === "distance_time" || t === "weight_time";
   const showDist = t === "distance_time";
   const intervals = format === "intervals";
 
   return (
     <div className="builder-fields">
-      {format === "sets" && (
+      {isSetBased(format) && (
         <F label="Sets">
           <NumInput value={item.sets} onChange={(v) => set({ sets: v })} />
         </F>
@@ -106,14 +109,21 @@ function ItemFields({ item, format, onChange }) {
       )}
       {showLoad && (
         <F label="Load">
-          <input className="input input-sm" value={item.load ?? ""} placeholder={t === "weight_reps" ? "60 kg / RPE 8" : "optional"} onChange={(e) => set({ load: e.target.value })} />
+          <input className="input input-sm" value={item.load ?? ""} placeholder={t === "weight_reps" || t === "weight_time" ? "60 kg / RPE 8" : "optional"} onChange={(e) => set({ load: e.target.value })} />
         </F>
       )}
-      {format === "sets" && (
+      {isSetBased(format) && (
         <>
-          <F label="Rest">
-            <DurationInput value={item.rest_sec} onChange={(v) => set({ rest_sec: v })} placeholder="1:30" />
-          </F>
+          {format === "sets" && (
+            <F label="Rest">
+              <DurationInput value={item.rest_sec} onChange={(v) => set({ rest_sec: v })} placeholder="1:30" />
+            </F>
+          )}
+          {roundRest && (
+            <F label="Rest after round">
+              <DurationInput value={roundRest.value} onChange={roundRest.onChange} placeholder="1:30" />
+            </F>
+          )}
           <F label="Tempo">
             <input className="input input-sm" value={item.tempo ?? ""} placeholder="3-1-1-0" onChange={(e) => set({ tempo: e.target.value })} />
           </F>
@@ -296,7 +306,7 @@ export default function WorkoutBuilderPage() {
                     ...block,
                     format,
                     ...FORMAT_DEFAULTS[format],
-                    items: block.items.map((i) => ({ ...i, sets: format === "sets" ? i.sets ?? 3 : null, rest_sec: format === "sets" ? i.rest_sec : null })),
+                    items: block.items.map((i) => ({ ...i, sets: isSetBased(format) ? i.sets ?? 3 : null, rest_sec: isSetBased(format) ? i.rest_sec : null })),
                   });
                 }}
               >
@@ -332,7 +342,7 @@ export default function WorkoutBuilderPage() {
               <div key={item.id} className="builder-item">
                 <div className="row between">
                   <div className="row gap-6 grow">
-                    <span className="faint small">{ii + 1}.</span>
+                    <span className="faint small">{block.format === "superset" ? `${String.fromCharCode(65 + bi)}${ii + 1}` : `${ii + 1}.`}</span>
                     <span style={{ fontWeight: 700 }} className="ellipsis">
                       {item.exercise?.name ?? "Exercise"}
                     </span>
@@ -349,7 +359,21 @@ export default function WorkoutBuilderPage() {
                     </button>
                   </div>
                 </div>
-                <ItemFields item={item} format={block.format} onChange={(next) => setItem(block.id, item.id, next)} />
+                <ItemFields
+                  item={item}
+                  format={block.format}
+                  onChange={(next) => setItem(block.id, item.id, next)}
+                  roundRest={
+                    block.format === "superset" && ii === block.items.length - 1
+                      ? {
+                          value: Math.max(0, ...block.items.map((i) => i.rest_sec || 0)) || null,
+                          // Keep the round's rest on the last exercise only.
+                          onChange: (v) =>
+                            setBlock(block.id, { ...block, items: block.items.map((i, k) => ({ ...i, rest_sec: k === block.items.length - 1 ? v : null })) }),
+                        }
+                      : null
+                  }
+                />
               </div>
             ))}
             <div style={{ padding: 12 }}>

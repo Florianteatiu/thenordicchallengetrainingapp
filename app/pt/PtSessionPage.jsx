@@ -15,7 +15,7 @@ import {
   upsertPtSetLog,
 } from "../lib/api";
 import { formatDate, todayISO } from "../lib/dates";
-import { blockSummary, formatLabel, prescription } from "../lib/format";
+import { blockSummary, formatLabel, isSetBased, prescription, setItemProps } from "../lib/format";
 import { unlockAudio } from "../lib/sound";
 import { CommitInput, ErrorBox, PageLoader, ProgressBar, useAsync } from "../components/ui";
 import ExercisePicker from "../components/ExercisePicker";
@@ -89,7 +89,7 @@ export default function PtSessionPage() {
   let planned = 0;
   let doneCount = 0;
   for (const b of workout.blocks) {
-    if (b.format === "sets") {
+    if (isSetBased(b.format)) {
       for (const it of b.items) {
         planned += it.sets || 1;
         doneCount += Math.min(it.sets || 1, Object.keys(sets[it.id] ?? {}).length);
@@ -110,7 +110,7 @@ export default function PtSessionPage() {
     }
   }
 
-  async function toggleSet(item, n, values) {
+  async function toggleSet(item, n, values, restSec = item.rest_sec) {
     unlockAudio();
     setActionError(null);
     const existing = sets[item.id]?.[n];
@@ -125,7 +125,7 @@ export default function PtSessionPage() {
       } else {
         const row = { session_id: id, block_exercise_id: item.id, exercise_id: item.exercise_id, set_number: n, done: true, ...values };
         setSets((prev) => ({ ...prev, [item.id]: { ...(prev[item.id] ?? {}), [n]: { ...row, id: "pending" } } }));
-        if (item.rest_sec) setRest({ endsAt: Date.now() + item.rest_sec * 1000 });
+        if (restSec) setRest({ endsAt: Date.now() + restSec * 1000 });
         const saved = await upsertPtSetLog(row);
         setSets((prev) => ({ ...prev, [item.id]: { ...(prev[item.id] ?? {}), [n]: saved } }));
       }
@@ -223,20 +223,22 @@ export default function PtSessionPage() {
               <div className="letter">{String.fromCharCode(65 + bi)}</div>
               <div className="grow">
                 <div className="h3">{block.name || formatLabel(block.format)}</div>
-                {block.format !== "sets" && (
+                {block.format === "superset" && <div className="tiny muted">Superset · back to back, rest after the round</div>}
+                {!isSetBased(block.format) && (
                   <div className="tiny muted">
                     {formatLabel(block.format)} · {blockSummary(block)}
                   </div>
                 )}
               </div>
-              {block.format !== "sets" && blockLogs[block.id] && <Check size={20} className="green" />}
+              {!isSetBased(block.format) && blockLogs[block.id] && <Check size={20} className="green" />}
             </div>
             {block.notes && <div className="exercise small muted">{block.notes}</div>}
 
-            {block.format === "sets" ? (
-              block.items.map((item) => (
+            {isSetBased(block.format) ? (
+              block.items.map((item, ii) => (
                 <ExerciseSets
                   key={item.id}
+                  {...setItemProps(block, ii, String.fromCharCode(65 + bi))}
                   item={item}
                   sets={sets[item.id] ?? {}}
                   last={last[item.exercise_id]}

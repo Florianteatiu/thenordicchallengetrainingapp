@@ -4,7 +4,7 @@ import { Check, ChevronRight, ClipboardCheck, Flame, Play, Trophy } from "lucide
 import { useAuth } from "../auth/AuthProvider";
 import { DAY_LETTER, addDays, formatDate, greetingForNow, mondayOf, todayISO } from "../lib/dates";
 import { firstName, formatLabel } from "../lib/format";
-import { dayStatus, levelFor, totalXp, workoutStreak } from "../lib/gamify";
+import { POINTS, dayStatus, levelFor, totalXp, workoutStreak } from "../lib/gamify";
 import { companionLine, MOODS } from "../lib/companion";
 import Companion from "../components/Companion";
 import { ProgressBar, useAsync } from "../components/ui";
@@ -184,13 +184,13 @@ export default function TodayPage() {
         </div>
         <div className="stat">
           <div className="stat-value yellow">{view.xp}</div>
-          <div className="stat-label">XP</div>
+          <div className="stat-label">{POINTS}</div>
         </div>
       </div>
       <div className="card card-tight mt-8">
         <div className="row between small mb-8">
           <span style={{ fontWeight: 700 }}>{view.level.name}</span>
-          <span className="faint">{view.level.next ? `${view.level.next.min - view.xp} XP to ${view.level.next.name}` : "Max level!"}</span>
+          <span className="faint">{view.level.next ? `${view.level.next.min - view.xp} ${POINTS} to ${view.level.next.name}` : "Max level!"}</span>
         </div>
         <ProgressBar value={view.level.progress} />
       </div>
