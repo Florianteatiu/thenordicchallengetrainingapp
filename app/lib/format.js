@@ -27,7 +27,7 @@ export const TRACKING = [
 
 export const FORMATS = [
   { id: "sets", label: "Straight sets", hint: "Classic sets and reps, logged set by set" },
-  { id: "superset", label: "Superset", hint: "2–3 exercises back to back with no rest, then rest after the round. Logged set by set." },
+  { id: "superset", label: "Superset", hint: "One set of each exercise back to back, then rest. That's one round. Sets = number of rounds." },
   { id: "circuit", label: "Circuit", hint: "Go through the list for a number of rounds" },
   { id: "intervals", label: "Intervals / HIIT", hint: "Work and rest on a timer, e.g. 40s on / 20s off" },
   { id: "amrap", label: "AMRAP", hint: "As many rounds as possible in a time cap" },

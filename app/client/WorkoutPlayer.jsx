@@ -51,7 +51,7 @@ const firstNumber = (text) => {
 
 // ---------- One set row ----------
 
-function SetRow({ n, tracking, logged, defaults, onToggle, onUpdate }) {
+function SetRow({ n, tag, tracking, logged, defaults, onToggle, onUpdate }) {
   const init = (v) => (v == null ? "" : String(v));
   const [load, setLoad] = useState(init(logged?.load_kg));
   const [reps, setReps] = useState(init(logged?.reps));
@@ -72,7 +72,7 @@ function SetRow({ n, tracking, logged, defaults, onToggle, onUpdate }) {
 
   return (
     <div className={`set-row${two ? "" : " one"}${done ? " done" : ""}`}>
-      <div className="set-num">{n}</div>
+      <div className="set-num">{tag ?? n}</div>
       {tracking === "weight_reps" && (
         <>
           <input className="input" inputMode="decimal" placeholder={ph(defaults.load)} value={load} onChange={(e) => setLoad(e.target.value)} onBlur={blur} />
@@ -120,19 +120,21 @@ export function lastTimeText(last) {
 
 // The header row + one row per set + "Add set" for one exercise and one
 // person. `sets` = { setNumber -> logged row }.
+// What to pre-fill for set/round `n`: last time's numbers, else the plan.
+function setDefaults(item, last, n) {
+  const prev = last?.sets.find((s) => s.set_number === n) ?? last?.sets[last.sets.length - 1];
+  return {
+    load: prev?.load_kg != null ? +prev.load_kg : /kg|^\s*\d/.test(item.load ?? "") ? firstNumber(item.load) : null,
+    reps: firstNumber(item.reps) ?? prev?.reps ?? null,
+    duration: item.duration_sec ?? prev?.duration_sec ?? null,
+    distance: item.distance_m ?? prev?.distance_m ?? null,
+  };
+}
+
 export function SetsGrid({ item, sets, last, extra, onAddSet, onToggle, onUpdate, restSec }) {
   const tracking = item.exercise?.tracking ?? "weight_reps";
   const count = Math.max(item.sets || 1, ...Object.keys(sets).map(Number)) + extra;
-
-  const defaultsFor = (n) => {
-    const prev = last?.sets.find((s) => s.set_number === n) ?? last?.sets[last.sets.length - 1];
-    return {
-      load: prev?.load_kg != null ? +prev.load_kg : /kg|^\s*\d/.test(item.load ?? "") ? firstNumber(item.load) : null,
-      reps: firstNumber(item.reps) ?? prev?.reps ?? null,
-      duration: item.duration_sec ?? prev?.duration_sec ?? null,
-      distance: item.distance_m ?? prev?.distance_m ?? null,
-    };
-  };
+  const defaultsFor = (n) => setDefaults(item, last, n);
 
   return (
     <>
@@ -193,6 +195,79 @@ export function ExerciseHeader({ item, label, restSec, nextLabel, badge }) {
       </div>
       {item.notes && <div className="small mt-8" style={{ borderLeft: "3px solid var(--yellow)", paddingLeft: 8 }}>{item.notes}</div>}
       {showCues && <div className="small muted mt-8">{ex.cues}</div>}
+    </>
+  );
+}
+
+// ---------- Superset, laid out round by round ----------
+
+// One set of each exercise back to back, then rest = one round. Each round's
+// rows are the same set_number for every exercise, so logs, "last time" and
+// PRs work exactly like straight sets.
+export function SupersetRounds({ block, letter, sets, last, prs, extraRounds = 0, onAddRound, onToggle, onUpdate }) {
+  const items = block.items;
+  const rest = Math.max(0, ...items.map((i) => i.rest_sec || 0));
+  const logged = items.flatMap((it) => Object.keys(sets[it.id] ?? {}).map(Number));
+  const rounds = Math.max(1, ...items.map((i) => i.sets || 1), ...logged) + extraRounds;
+  const label = (i) => `${letter}${i + 1}`;
+
+  return (
+    <>
+      {items.map((item, i) => {
+        const l = last[item.exercise_id];
+        return (
+          <div key={item.id} className="exercise">
+            <ExerciseHeader
+              item={{ ...item, sets: null }}
+              label={label(i)}
+              restSec={0}
+              badge={
+                prs.has(item.exercise_id) && (
+                  <span className="pill pill-yellow">
+                    <Trophy size={11} /> New PR!
+                  </span>
+                )
+              }
+            />
+            {l && <div className="tiny faint mt-8">Last time: {lastTimeText(l)}</div>}
+          </div>
+        );
+      })}
+      <div className="exercise">
+        <div className="small muted mb-8">
+          One set of each exercise back to back{rest ? `, then rest ${formatClock(rest)}` : ", then rest"}. That's one round.
+        </div>
+        {Array.from({ length: rounds }, (_, r) => r + 1).map((n) => (
+          <div key={n} className="round">
+            <div className="round-title">Round {n}</div>
+            {items.map((item, i) => {
+              const tracking = item.exercise?.tracking ?? "weight_reps";
+              const isLast = i === items.length - 1;
+              return (
+                <div key={item.id} className="round-row">
+                  <div className="tiny muted ellipsis">
+                    <b className="yellow">{label(i)}</b> {item.exercise?.name} · {HEADS[tracking].join(" / ")}
+                  </div>
+                  <SetRow
+                    key={`${n}-${sets[item.id]?.[n]?.id ?? "new"}`}
+                    n={n}
+                    tag={label(i)}
+                    tracking={tracking}
+                    logged={sets[item.id]?.[n]}
+                    defaults={setDefaults(item, last[item.exercise_id], n)}
+                    onToggle={(v) => onToggle(item, n, v, isLast ? rest : 0)}
+                    onUpdate={(v) => onUpdate(item, n, v)}
+                  />
+                  {isLast && rest > 0 && <div className="tiny faint round-rest">Rest {formatClock(rest)}</div>}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+        <button className="link-btn small mt-8 row gap-4" onClick={onAddRound}>
+          <Plus size={14} /> Add round
+        </button>
+      </div>
     </>
   );
 }
@@ -662,7 +737,7 @@ export default function WorkoutPlayer() {
               <div className="letter">{String.fromCharCode(65 + bi)}</div>
               <div className="grow">
                 <div className="h3">{block.name || formatLabel(block.format)}</div>
-                {block.format === "superset" && <div className="tiny muted">Superset · do them back to back, rest after the round</div>}
+                {block.format === "superset" && <div className="tiny muted">Superset · {Math.max(1, ...block.items.map((i) => i.sets || 1))} rounds · one set of each, then rest</div>}
                 {!isSetBased(block.format) && <div className="tiny muted">{formatLabel(block.format)} · {blockSummary(block)}</div>}
               </div>
               {!isSetBased(block.format) && blockLogs[block.id] && <Check size={20} className="green" />}
@@ -670,7 +745,19 @@ export default function WorkoutPlayer() {
 
             {block.notes && <div className="exercise small muted">{block.notes}</div>}
 
-            {isSetBased(block.format)
+            {block.format === "superset" ? (
+              <SupersetRounds
+                block={block}
+                letter={String.fromCharCode(65 + bi)}
+                sets={sets}
+                last={last}
+                prs={prs}
+                extraRounds={extraSets[block.id] ?? 0}
+                onAddRound={() => setExtraSets((x) => ({ ...x, [block.id]: (x[block.id] ?? 0) + 1 }))}
+                onToggle={toggleSet}
+                onUpdate={updateSet}
+              />
+            ) : isSetBased(block.format)
               ? block.items.map((item, ii) => (
                   <ExerciseSets
                     key={item.id}
