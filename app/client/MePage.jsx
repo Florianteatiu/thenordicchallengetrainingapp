@@ -4,7 +4,7 @@ import { useOutletContext } from "react-router-dom";
 import { Camera, Check, Lock } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
 import { updateProfile, uploadAvatar } from "../lib/api";
-import { LEVELS, levelFor, totalXp } from "../lib/gamify";
+import { LEVELS, POINTS, XP_PER_WORKOUT, levelFor, totalXp } from "../lib/gamify";
 import { Avatar, CommitInput, ErrorBox } from "../components/ui";
 import PushToggle from "../components/PushToggle";
 
@@ -119,13 +119,16 @@ export default function MePage() {
                   <div style={{ fontWeight: current ? 800 : 600 }} className={current ? "yellow" : ""}>
                     {l.name}
                   </div>
+                  <div className="tiny muted" style={{ lineHeight: 1.35 }}>{l.meaning}</div>
                 </div>
-                <span className="tiny faint">{l.min} XP</span>
+                <span className="tiny faint nowrap">{l.min} {POINTS}</span>
               </div>
             );
           })}
         </div>
-        <div className="tiny faint mt-8">Every finished workout = 100 XP.</div>
+        <div className="tiny faint mt-8">
+          Every finished workout = {XP_PER_WORKOUT} {POINTS}. Mana is the Polynesian idea of the power and strength you build up.
+        </div>
       </div>
 
       <div className="section">

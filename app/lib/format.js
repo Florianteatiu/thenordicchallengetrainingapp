@@ -6,8 +6,20 @@ export const CATEGORIES = [
   { id: "core", label: "Core" },
 ];
 
+// Sub-categories for strength exercises.
+export const BODY_REGIONS = [
+  { id: "upper", label: "Upper body" },
+  { id: "lower", label: "Lower body" },
+  { id: "full", label: "Full body" },
+];
+
+export function regionLabel(id) {
+  return BODY_REGIONS.find((r) => r.id === id)?.label ?? "";
+}
+
 export const TRACKING = [
   { id: "weight_reps", label: "Weight × reps" },
+  { id: "weight_time", label: "Weight + time" },
   { id: "reps", label: "Reps only" },
   { id: "time", label: "Time" },
   { id: "distance_time", label: "Distance + time" },
@@ -15,11 +27,28 @@ export const TRACKING = [
 
 export const FORMATS = [
   { id: "sets", label: "Straight sets", hint: "Classic sets and reps, logged set by set" },
+  { id: "superset", label: "Superset", hint: "2–3 exercises back to back with no rest, then rest after the round. Logged set by set." },
   { id: "circuit", label: "Circuit", hint: "Go through the list for a number of rounds" },
   { id: "intervals", label: "Intervals / HIIT", hint: "Work and rest on a timer, e.g. 40s on / 20s off" },
   { id: "amrap", label: "AMRAP", hint: "As many rounds as possible in a time cap" },
   { id: "emom", label: "EMOM", hint: "Every minute on the minute" },
 ];
+
+// Straight sets and supersets are both logged set by set.
+export const isSetBased = (format) => format === "sets" || format === "superset";
+
+// Superset exercises are labelled A1, A2… and only the last one starts the
+// rest timer (the others go straight into the next exercise).
+export function setItemProps(block, index, letter) {
+  if (block.format !== "superset") return {};
+  const isLast = index === block.items.length - 1;
+  const rest = Math.max(0, ...block.items.map((i) => i.rest_sec || 0));
+  return {
+    label: `${letter}${index + 1}`,
+    restSec: isLast ? rest : 0,
+    nextLabel: isLast ? null : `${letter}${index + 2}`,
+  };
+}
 
 export function formatLabel(id) {
   return FORMATS.find((f) => f.id === id)?.label ?? id;
@@ -76,14 +105,14 @@ export function prescription(item, format, tracking) {
   const parts = [];
   const volume = [];
   const hasAmount = item.reps || item.duration_sec || item.distance_m;
-  if (format === "sets" && item.sets) volume.push(hasAmount ? `${item.sets} ×` : `${item.sets} sets`);
+  if (isSetBased(format) && item.sets) volume.push(hasAmount ? `${item.sets} ×` : `${item.sets} sets`);
   if (item.reps) volume.push(item.reps);
   if (item.duration_sec) volume.push(formatDuration(item.duration_sec));
   if (item.distance_m) volume.push(formatDistance(item.distance_m));
   if (volume.length) parts.push(volume.join(" "));
   if (item.load) parts.push(item.load);
   if (item.tempo) parts.push(`tempo ${item.tempo}`);
-  if (format === "sets" && item.rest_sec) parts.push(`rest ${formatDuration(item.rest_sec)}`);
+  if (isSetBased(format) && item.rest_sec) parts.push(`rest ${formatDuration(item.rest_sec)}`);
   if (!parts.length && tracking === "time") return "Timed";
   return parts.join(" · ");
 }

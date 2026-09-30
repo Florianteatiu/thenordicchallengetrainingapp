@@ -2,16 +2,21 @@ import { todayISO } from "./dates";
 
 export const XP_PER_WORKOUT = 100;
 
-// Levels follow Florian's own path: ballet, rugby, then crossing Sweden by
-// swimming, cycling and running.
+// What clients see instead of "XP": Mana, the Polynesian idea of power and
+// strength you build up. (Code still says "xp" internally.)
+export const POINTS = "Mana";
+
+// Levels follow Florian's own path: growing up in Tahiti, ballet, rugby,
+// then crossing Sweden by swimming, cycling and running.
 export const LEVELS = [
-  { min: 0, name: "Rookie" },
-  { min: 300, name: "Barre Work" },
-  { min: 800, name: "Scrum Ready" },
-  { min: 1500, name: "Open Water" },
-  { min: 2500, name: "Long Haul" },
-  { min: 4000, name: "Nordic Crosser" },
-  { min: 6000, name: "Legend of the North" },
+  { min: 0, name: "Tamari'i", meaning: "Everyone starts as \u201cthe little one\u201d. Welcome to the family." },
+  { min: 300, name: "Barre", meaning: "Ballet: discipline, control and showing up every day." },
+  { min: 800, name: "Scrum", meaning: "Rugby: grit, teamwork and getting back up." },
+  { min: 1500, name: "Va'a", meaning: "Paddling the lagoon in Tahiti: rhythm and endurance." },
+  { min: 2500, name: "Open Water", meaning: "The swim leg: calm and steady, stroke after stroke." },
+  { min: 4000, name: "Long Haul", meaning: "Bike and run across the country: patience and staying power." },
+  { min: 6000, name: "Nordic Crosser", meaning: "You've gone the distance, all the way across Sweden." },
+  { min: 9000, name: "Aito", meaning: "Champion. Warrior. The strongest version of you." },
 ];
 
 export function levelFor(xp) {
@@ -22,7 +27,7 @@ export function levelFor(xp) {
   const current = LEVELS[idx];
   const next = LEVELS[idx + 1] ?? null;
   const progress = next ? (xp - current.min) / (next.min - current.min) : 1;
-  return { number: idx + 1, name: current.name, next, progress, xp };
+  return { number: idx + 1, name: current.name, meaning: current.meaning, next, progress, xp };
 }
 
 export function totalXp(sessions) {

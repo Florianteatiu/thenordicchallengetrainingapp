@@ -2,11 +2,12 @@ import { useMemo, useState } from "react";
 import { Pencil, Plus, Search, Upload, Video } from "lucide-react";
 import { deleteExercise, listExercises, saveExercise, uploadExerciseVideo } from "../lib/api";
 import VideoEmbed from "../components/VideoEmbed";
-import { CATEGORIES, TRACKING, categoryLabel } from "../lib/format";
+import { BODY_REGIONS, CATEGORIES, TRACKING, categoryLabel, regionLabel } from "../lib/format";
+import RegionChips, { matchesFilter } from "../components/RegionChips";
 import { ErrorBox, Modal, PageLoader, useAsync } from "../components/ui";
 
 function ExerciseModal({ exercise, onClose, onSaved, onDeleted }) {
-  const [form, setForm] = useState({ name: "", category: "strength", tracking: "weight_reps", video_url: "", cues: "", journey_kind: null, ...exercise });
+  const [form, setForm] = useState({ name: "", category: "strength", tracking: "weight_reps", video_url: "", cues: "", journey_kind: null, body_region: null, ...exercise });
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
@@ -17,7 +18,7 @@ function ExerciseModal({ exercise, onClose, onSaved, onDeleted }) {
     setBusy(true);
     setError(null);
     try {
-      const { id, name, category, tracking, video_url, cues, journey_kind } = form;
+      const { id, name, category, tracking, video_url, cues, journey_kind, body_region } = form;
       const saved = await saveExercise({
         id,
         name: name.trim(),
@@ -26,6 +27,7 @@ function ExerciseModal({ exercise, onClose, onSaved, onDeleted }) {
         video_url: video_url?.trim() || null,
         cues: cues?.trim() || null,
         journey_kind: tracking === "distance_time" ? journey_kind || null : null,
+        body_region: category === "strength" ? body_region || null : null,
       });
       onSaved(saved);
     } catch (e) {
@@ -109,6 +111,18 @@ function ExerciseModal({ exercise, onClose, onSaved, onDeleted }) {
             </select>
           </label>
         </div>
+        {form.category === "strength" && (
+          <div className="field">
+            <span>Body part</span>
+            <div className="chips">
+              {BODY_REGIONS.map((r) => (
+                <button type="button" key={r.id} className={`chip${form.body_region === r.id ? " active" : ""}`} onClick={() => set({ body_region: form.body_region === r.id ? null : r.id })}>
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {form.tracking === "distance_time" && (
           <label className="field">
             <span>Counts on the Cross Sweden map as</span>
@@ -145,11 +159,12 @@ export default function LibraryPage() {
   const { data, loading, error, reload, setData } = useAsync(listExercises, []);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("all");
+  const [region, setRegion] = useState("all");
   const [editing, setEditing] = useState(null);
 
   const list = useMemo(
-    () => (data ?? []).filter((e) => (cat === "all" || e.category === cat) && e.name.toLowerCase().includes(q.trim().toLowerCase())),
-    [data, q, cat],
+    () => (data ?? []).filter((e) => matchesFilter(e, cat, region) && e.name.toLowerCase().includes(q.trim().toLowerCase())),
+    [data, q, cat, region],
   );
 
   if (loading && !data) return <PageLoader />;
@@ -185,6 +200,12 @@ export default function LibraryPage() {
         </div>
       </div>
 
+      {cat === "strength" && (
+        <div className="mb-16" style={{ marginTop: -6 }}>
+          <RegionChips region={region} onChange={setRegion} exercises={data ?? []} />
+        </div>
+      )}
+
       <div className="card" style={{ padding: 0, overflowX: "auto" }}>
         <table className="table">
           <thead>
@@ -203,7 +224,12 @@ export default function LibraryPage() {
                   <div style={{ fontWeight: 700 }}>{e.name}</div>
                   {e.cues && <div className="tiny faint ellipsis" style={{ maxWidth: 380 }}>{e.cues}</div>}
                 </td>
-                <td><span className="pill">{categoryLabel(e.category)}</span></td>
+                <td>
+                  <span className="pill">
+                    {categoryLabel(e.category)}
+                    {e.body_region ? ` · ${regionLabel(e.body_region).replace(" body", "")}` : ""}
+                  </span>
+                </td>
                 <td className="small muted nowrap">{TRACKING.find((t) => t.id === e.tracking)?.label}</td>
                 <td>{e.video_url ? <Video size={16} className="yellow" /> : <span className="faint tiny">–</span>}</td>
                 <td><Pencil size={15} className="faint" /></td>

@@ -4,7 +4,7 @@ import { ChevronRight, ClipboardCheck } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
 import LiftProgress from "../components/LiftProgress";
 import { addDays, formatDateTime, mondayOf, todayISO } from "../lib/dates";
-import { levelFor, totalXp } from "../lib/gamify";
+import { POINTS, levelFor, totalXp } from "../lib/gamify";
 import SessionDetailModal, { FEELINGS } from "../components/SessionDetail";
 
 export default function HistoryPage() {
@@ -40,7 +40,7 @@ export default function HistoryPage() {
         </div>
         <div className="stat">
           <div className="stat-value yellow">{level.xp}</div>
-          <div className="stat-label">XP</div>
+          <div className="stat-label">{POINTS}</div>
         </div>
         <div className="stat">
           <div className="stat-value">{level.number}</div>

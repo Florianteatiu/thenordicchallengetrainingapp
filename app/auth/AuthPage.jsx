@@ -9,9 +9,8 @@ function Shell({ children }) {
     <div className="auth">
       <div className="auth-card">
         <div className="center mb-16">
-          <img src={logo} alt="" style={{ width: 64, height: 64, margin: "0 auto 14px" }} />
-          <div className="h1">The Nordic Challenge</div>
-          <div className="muted mt-8">Train with Florian</div>
+          <img src={logo} alt="The Nordic Challenge" style={{ width: 132, height: 132, margin: "0 auto 14px" }} />
+          <div className="muted">Coached by Florian Teatiu</div>
         </div>
         {children}
       </div>

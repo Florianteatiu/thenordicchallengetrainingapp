@@ -15,18 +15,24 @@ end to end; explain in plain, non-technical language.
 - `src/`, `supabase/schema.sql` — old prototype, unused (kept until Florian OKs deleting).
 
 ## Data model
-exercises (library) → workouts → workout_blocks (format: sets|circuit|intervals|amrap|emom)
-→ block_exercises. programs (weeks, is_template, client_id, start_date, status
+exercises (library; tracking weight_reps|weight_time|reps|time|distance_time; strength ones
+tagged body_region upper|lower|full) → workouts → workout_blocks (format:
+sets|superset|circuit|intervals|amrap|emom; sets + superset are "set-based", see
+`isSetBased`/`setItemProps` in lib/format.js — superset rest = max rest_sec, only after the
+last exercise) → block_exercises. programs (weeks, is_template, client_id, start_date, status
 draft|active|completed) → program_days (week, day 1=Mon, workout_id; each day owns a
 private workout copy). Logging: workout_sessions (per client + program_day),
 set_logs, block_logs. Week 1 starts on the Monday of start_date.
 
 ## Brand
-Black background, yellow `#FFE234`, Barlow Condensed (display) + Inter.
+The Nordic Challenge logo everywhere (`app/assets/logo.png`, icons in `public/icons`,
+PT icons on yellow), with the credit "Coached by Florian Teatiu"; share card tag
+@florianteatiu. Black background, yellow `#FFE234`, Barlow Condensed (display) + Inter.
 Companion = Florian's face (`COMPANION_PHOTOS` in `app/config.js`, files in
 `public/companion/`), falls back to his profile photo, then the logo.
-Levels follow his story: Rookie → Barre Work → Scrum Ready → Open Water →
-Long Haul → Nordic Crosser → Legend of the North.
+Points are called **Mana** (`POINTS` in lib/gamify.js; code still says xp). Levels follow
+his story, each with a meaning shown on the Me page: Tamari'i → Barre → Scrum → Va'a →
+Open Water → Long Haul → Nordic Crosser → Aito.
 
 ## Testing
 Run a local Supabase (`npx supabase start` in a scratch dir with the
@@ -57,7 +63,8 @@ in `.env.local` as `VITE_DEV_SUPABASE_URL` / `VITE_DEV_SUPABASE_ANON_KEY`,
   workout, checkin, checkin_reply, program, daily). Needs VAPID_PUBLIC_KEY/PRIVATE_KEY
   function secrets + `VAPID_PUBLIC_KEY` in `app/config.js`. Daily reminder = pg_cron job
   calling notify with {type:"daily"} (deduped by `reminder_log`).
-- Share card: `lib/shareCard.js` (canvas, 1080×1920). Welcome flow: `client/WelcomeFlow.jsx`
+- Share card: `lib/shareCard.js` (canvas, 1080×1920; laid out with a running y that must
+  end above SAFE_BOTTOM, Instagram's covered area). Welcome flow: `client/WelcomeFlow.jsx`
   (until `profiles.onboarded_at` is set; video = `WELCOME_VIDEO_URL` in config).
 - Needs attention list: `coach/ClientsPage.jsx`. Lift charts: `components/LiftProgress.jsx`.
 - Exercise videos: upload to public `exercise-videos` bucket or paste a YouTube/Vimeo link;

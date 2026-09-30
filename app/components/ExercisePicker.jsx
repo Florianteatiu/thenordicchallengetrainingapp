@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import { saveExercise } from "../lib/api";
-import { CATEGORIES, TRACKING, categoryLabel } from "../lib/format";
+import { CATEGORIES, TRACKING, categoryLabel, regionLabel } from "../lib/format";
+import RegionChips, { matchesFilter } from "./RegionChips";
 import { ErrorBox, Modal } from "./ui";
 
 const DEFAULT_TRACKING = { strength: "weight_reps", conditioning: "reps", endurance: "distance_time", mobility: "reps", core: "reps" };
@@ -10,14 +11,15 @@ const DEFAULT_TRACKING = { strength: "weight_reps", conditioning: "reps", endura
 export default function ExercisePicker({ exercises, onPick, onCreated, onClose }) {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("all");
+  const [region, setRegion] = useState("all");
   const [creating, setCreating] = useState(false);
   const [newCat, setNewCat] = useState("strength");
   const [newTracking, setNewTracking] = useState("weight_reps");
   const [error, setError] = useState(null);
 
   const filtered = useMemo(
-    () => exercises.filter((e) => (cat === "all" || e.category === cat) && e.name.toLowerCase().includes(q.trim().toLowerCase())),
-    [exercises, q, cat],
+    () => exercises.filter((e) => matchesFilter(e, cat, region) && e.name.toLowerCase().includes(q.trim().toLowerCase())),
+    [exercises, q, cat, region],
   );
   const exact = exercises.some((e) => e.name.toLowerCase() === q.trim().toLowerCase());
 
@@ -58,6 +60,11 @@ export default function ExercisePicker({ exercises, onPick, onCreated, onClose }
           </button>
         ))}
       </div>
+      {cat === "strength" && (
+        <div className="mb-12" style={{ marginTop: -4 }}>
+          <RegionChips region={region} onChange={setRegion} exercises={exercises} />
+        </div>
+      )}
 
       {q.trim() && !exact && (
         <div className="card card-tight mb-12">
@@ -110,7 +117,7 @@ export default function ExercisePicker({ exercises, onPick, onCreated, onClose }
         {filtered.map((e) => (
           <button key={e.id} className="card card-tight card-link row between" style={{ textAlign: "left", cursor: "pointer" }} onClick={() => onPick(e)}>
             <span style={{ fontWeight: 600 }}>{e.name}</span>
-            <span className="pill">{categoryLabel(e.category)}</span>
+            <span className="pill">{e.body_region ? regionLabel(e.body_region) : categoryLabel(e.category)}</span>
           </button>
         ))}
         {filtered.length === 0 && !q && <div className="small faint center">No exercises in this category yet.</div>}
