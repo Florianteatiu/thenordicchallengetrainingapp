@@ -19,7 +19,7 @@ import { blockSummary, formatLabel, isSetBased, prescription, setItemProps } fro
 import { unlockAudio } from "../lib/sound";
 import { CommitInput, ErrorBox, PageLoader, ProgressBar, useAsync } from "../components/ui";
 import ExercisePicker from "../components/ExercisePicker";
-import { BlockResult, ExerciseSets, RestBar } from "../client/WorkoutPlayer";
+import { BlockResult, ExerciseSets, RestBar, SupersetRounds } from "../client/WorkoutPlayer";
 import BlockTimer from "../client/BlockTimer";
 
 // One in-person session: Florian logs the client's sets on his phone as they
@@ -223,7 +223,7 @@ export default function PtSessionPage() {
               <div className="letter">{String.fromCharCode(65 + bi)}</div>
               <div className="grow">
                 <div className="h3">{block.name || formatLabel(block.format)}</div>
-                {block.format === "superset" && <div className="tiny muted">Superset · back to back, rest after the round</div>}
+                {block.format === "superset" && <div className="tiny muted">Superset · {Math.max(1, ...block.items.map((i) => i.sets || 1))} rounds · one set of each, then rest</div>}
                 {!isSetBased(block.format) && (
                   <div className="tiny muted">
                     {formatLabel(block.format)} · {blockSummary(block)}
@@ -234,7 +234,19 @@ export default function PtSessionPage() {
             </div>
             {block.notes && <div className="exercise small muted">{block.notes}</div>}
 
-            {isSetBased(block.format) ? (
+            {block.format === "superset" ? (
+              <SupersetRounds
+                block={block}
+                letter={String.fromCharCode(65 + bi)}
+                sets={sets}
+                last={last}
+                prs={prs}
+                extraRounds={extraSets[block.id] ?? 0}
+                onAddRound={() => setExtraSets((x) => ({ ...x, [block.id]: (x[block.id] ?? 0) + 1 }))}
+                onToggle={toggleSet}
+                onUpdate={updateSet}
+              />
+            ) : isSetBased(block.format) ? (
               block.items.map((item, ii) => (
                 <ExerciseSets
                   key={item.id}

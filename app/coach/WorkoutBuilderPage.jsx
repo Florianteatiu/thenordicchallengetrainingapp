@@ -88,7 +88,7 @@ function ItemFields({ item, format, onChange, roundRest }) {
   return (
     <div className="builder-fields">
       {isSetBased(format) && (
-        <F label="Sets">
+        <F label={format === "superset" ? "Rounds" : "Sets"}>
           <NumInput value={item.sets} onChange={(v) => set({ sets: v })} />
         </F>
       )}

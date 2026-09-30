@@ -560,3 +560,11 @@ button.event-row { cursor: pointer; }
 .seg-full { display: flex; width: 100%; }
 .seg-full button { flex: 1; overflow: hidden; text-overflow: ellipsis; }
 .person-sets { margin-top: 12px; padding: 10px 10px 8px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); }
+
+/* Superset laid out round by round */
+.round { margin-top: 10px; padding: 10px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); }
+.round-title { font-family: var(--font-display); font-weight: 800; font-size: 18px; text-transform: uppercase; margin-bottom: 6px; }
+.round-row + .round-row { margin-top: 8px; }
+.round-row .set-row { margin-top: 3px; }
+.round-row .set-num { color: var(--yellow); font-size: 12px; }
+.round-rest { text-align: right; margin-top: 4px; }

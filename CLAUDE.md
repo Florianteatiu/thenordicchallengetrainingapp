@@ -19,7 +19,8 @@ exercises (library; tracking weight_reps|weight_time|reps|time|distance_time; st
 tagged body_region upper|lower|full) → workouts → workout_blocks (format:
 sets|superset|circuit|intervals|amrap|emom; sets + superset are "set-based", see
 `isSetBased`/`setItemProps` in lib/format.js — superset rest = max rest_sec, only after the
-last exercise) → block_exercises. programs (weeks, is_template, client_id, start_date, status
+last exercise; supersets are shown round by round by `SupersetRounds` in client/WorkoutPlayer.jsx,
+round n = set_number n of every exercise, and "Sets" is labelled "Rounds" in the builder) → block_exercises. programs (weeks, is_template, client_id, start_date, status
 draft|active|completed) → program_days (week, day 1=Mon, workout_id; each day owns a
 private workout copy). Logging: workout_sessions (per client + program_day),
 set_logs, block_logs. Week 1 starts on the Monday of start_date.
