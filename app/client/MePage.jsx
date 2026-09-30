@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { supabase } from "../lib/supabase";
 import { useOutletContext } from "react-router-dom";
 import { Camera, Check, Lock } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
@@ -6,6 +7,54 @@ import { updateProfile, uploadAvatar } from "../lib/api";
 import { LEVELS, levelFor, totalXp } from "../lib/gamify";
 import { Avatar, CommitInput, ErrorBox } from "../components/ui";
 import PushToggle from "../components/PushToggle";
+
+function ChangePassword() {
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [done, setDone] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    const { error } = await supabase.auth.updateUser({ password });
+    setBusy(false);
+    if (error) return setError(error);
+    setDone(true);
+    setOpen(false);
+    setPassword("");
+  }
+
+  if (!open)
+    return (
+      <div className="row between">
+        <span className="small muted">{done ? "Password changed ✓" : "Want a new password?"}</span>
+        <button className="btn btn-ghost btn-sm" onClick={() => { setOpen(true); setDone(false); }}>
+          Change password
+        </button>
+      </div>
+    );
+
+  return (
+    <form className="col gap-6" onSubmit={submit}>
+      <label className="field">
+        <span>New password (at least 8 characters)</span>
+        <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} autoComplete="new-password" required autoFocus />
+      </label>
+      <ErrorBox error={error} />
+      <div className="row" style={{ justifyContent: "flex-end" }}>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOpen(false)}>
+          Cancel
+        </button>
+        <button className="btn btn-primary btn-sm" disabled={busy}>
+          {busy ? "Saving…" : "Save"}
+        </button>
+      </div>
+    </form>
+  );
+}
 
 export default function MePage() {
   const { profile, setProfile, signOut } = useAuth();
@@ -101,6 +150,13 @@ export default function MePage() {
           <span>Equipment I have access to</span>
           <CommitInput multiline value={profile.equipment} onCommit={(v) => save("equipment", v)} placeholder="Gym, home dumbbells, bands…" />
         </label>
+      </div>
+
+      <div className="section">
+        <div className="eyebrow mb-8">Login</div>
+        <div className="card card-tight">
+          <ChangePassword />
+        </div>
       </div>
 
       <button className="btn btn-ghost btn-block mt-24" onClick={signOut}>

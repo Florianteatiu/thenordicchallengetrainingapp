@@ -2,6 +2,8 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useAuth } from "./auth/AuthProvider";
 import AuthPage, { SetNewPassword } from "./auth/AuthPage";
 import { ErrorBox, PageLoader } from "./components/ui";
+import { markPasswordChanged } from "./lib/api";
+import { COACH_FIRST_NAME } from "./config";
 
 import CoachLayout from "./coach/CoachLayout";
 import ClientsPage from "./coach/ClientsPage";
@@ -32,7 +34,7 @@ import PtClientPage from "./pt/PtClientPage";
 import PtSessionPage from "./pt/PtSessionPage";
 
 export default function App() {
-  const { session, profile, loading, profileError, recovering, signOut } = useAuth();
+  const { session, profile, setProfile, loading, profileError, recovering, signOut } = useAuth();
   const inPtApp = useLocation().pathname.startsWith("/pt");
 
   if (loading) return <PageLoader />;
@@ -94,6 +96,17 @@ export default function App() {
       </Routes>
     );
   }
+
+  if (profile.must_change_password)
+    return (
+      <SetNewPassword
+        intro={`You signed in with a temporary password from ${COACH_FIRST_NAME}. Choose your own so only you know it.`}
+        onDone={async () => {
+          await markPasswordChanged();
+          setProfile({ ...profile, must_change_password: false });
+        }}
+      />
+    );
 
   if (!profile.onboarded_at) return <WelcomeFlow />;
 

@@ -29,6 +29,11 @@ longer used — `index.html` loads `app/main.jsx`.
 
 ## Accounts
 
+- **Forgotten passwords** are reset by the coach (client page → Profile & notes →
+  Reset password), which creates a temporary password; the client is asked to
+  choose their own on the next sign-in. No email is involved, because the project
+  has no email service set up. Migration `20261001000002_coach_password_reset.sql`.
+
 - The **first account ever created becomes the coach** (enforced in the
   database). Every account after that is a client.
 - Clients sign up from the app link (Clients page → "Copy invite link").

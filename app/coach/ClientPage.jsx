@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, CalendarPlus, Copy, Play, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarPlus, Check, Copy, KeyRound, Play, Trash2 } from "lucide-react";
 import {
   activateProgram,
   copyProgram,
@@ -10,6 +10,7 @@ import {
   listClientPrograms,
   listProgramTemplates,
   listSessions,
+  resetClientPassword,
   updateProfile,
 } from "../lib/api";
 import { formatDate, formatDateTime, nextMonday } from "../lib/dates";
@@ -22,6 +23,94 @@ import LiftProgress from "../components/LiftProgress";
 import { ClientCheckins } from "./InboxPage";
 
 const STATUS_TONE = { active: "pill-green", draft: "pill-yellow", completed: "" };
+
+const WORDS = ["Fjord", "Moose", "Birch", "Frost", "Pine", "Island", "Summit", "Trail", "North", "Lake", "Storm", "Aurora"];
+
+// Easy to read out or type: e.g. "Moose-Fjord-4827".
+function temporaryPassword() {
+  const r = crypto.getRandomValues(new Uint32Array(3));
+  return `${WORDS[r[0] % WORDS.length]}-${WORDS[r[1] % WORDS.length]}-${1000 + (r[2] % 9000)}`;
+}
+
+function ResetPasswordModal({ client, onClose }) {
+  const [password, setPassword] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const first = client.full_name.split(" ")[0];
+  const message = password
+    ? `Hi ${first}! Here's a temporary password for the Nordic Challenge app: ${password}\n\nSign in with your usual email and this password, and the app will ask you to choose a new one. All your workouts and progress are still there.`
+    : "";
+
+  async function reset() {
+    setBusy(true);
+    setError(null);
+    try {
+      const pw = temporaryPassword();
+      await resetClientPassword(client.id, pw);
+      setPassword(pw);
+    } catch (e) {
+      setError(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(message);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setError("Couldn't copy automatically. Select the message and copy it by hand.");
+    }
+  }
+
+  return (
+    <Modal title="Reset password" onClose={onClose}>
+      {!password ? (
+        <div className="col gap-16">
+          <p className="muted" style={{ margin: 0 }}>
+            {first} gets a temporary password from you. When they sign in with it, the app asks them to choose their own. Their workouts, messages
+            and progress are not affected.
+          </p>
+          <p className="small faint" style={{ margin: 0 }}>
+            Their old password stops working straight away, and they're signed out on any phone that's still logged in.
+          </p>
+          <ErrorBox error={error} />
+          <div className="row" style={{ justifyContent: "flex-end" }}>
+            <button className="btn btn-ghost" onClick={onClose}>
+              Cancel
+            </button>
+            <button className="btn btn-primary" onClick={reset} disabled={busy}>
+              <KeyRound size={16} /> {busy ? "Resetting…" : "Create temporary password"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="col gap-16">
+          <div className="ok-box">Done! Send this to {first}:</div>
+          <div className="card center">
+            <div className="eyebrow">Temporary password</div>
+            <div className="display yellow mt-8" style={{ fontSize: 30, textTransform: "none", userSelect: "all" }}>
+              {password}
+            </div>
+          </div>
+          <div className="card card-tight small" style={{ whiteSpace: "pre-wrap", userSelect: "all" }}>
+            {message}
+          </div>
+          <ErrorBox error={error} />
+          <button className="btn btn-primary btn-block" onClick={copy}>
+            {copied ? <Check size={16} /> : <Copy size={16} />} {copied ? "Copied!" : "Copy message"}
+          </button>
+          <p className="tiny faint center" style={{ margin: 0 }}>
+            This password is only shown now. If you lose it, just reset again.
+          </p>
+        </div>
+      )}
+    </Modal>
+  );
+}
 
 function AssignModal({ clientId, onClose, onDone }) {
   const templates = useAsync(listProgramTemplates, []);
@@ -95,6 +184,7 @@ export default function ClientPage() {
   const [tab, setTab] = useState("programs");
   const [assigning, setAssigning] = useState(false);
   const [openSession, setOpenSession] = useState(null);
+  const [resetting, setResetting] = useState(false);
   const [actionError, setActionError] = useState(null);
 
   const { data, loading, error, reload, setData } = useAsync(async () => {
@@ -267,6 +357,16 @@ export default function ClientPage() {
             <CommitInput type="number" min={1} max={14} value={String(client.weekly_target)} onCommit={(v) => saveField("weekly_target", Number(v) || 3)} />
           </label>
           <div className="small faint">The client can see and edit their own goals, injuries and equipment in their Me tab.</div>
+          <div className="card mt-8">
+            <div className="h3">Login</div>
+            <div className="small muted mt-4">
+              Forgot their password? Create a temporary one and send it to them.
+              {client.must_change_password && " (A temporary password is active and hasn't been changed yet.)"}
+            </div>
+            <button className="btn btn-ghost btn-sm mt-12" onClick={() => setResetting(true)}>
+              <KeyRound size={15} /> Reset password
+            </button>
+          </div>
           <div className="row mt-8">
             <button className="btn btn-ghost btn-sm" onClick={() => saveField("archived", !client.archived)}>
               {client.archived ? "Restore client" : "Archive client"}
@@ -283,6 +383,15 @@ export default function ClientPage() {
         />
       )}
       {openSession && <SessionDetailModal sessionId={openSession} onClose={() => setOpenSession(null)} />}
+      {resetting && (
+        <ResetPasswordModal
+          client={client}
+          onClose={() => {
+            setResetting(false);
+            reload();
+          }}
+        />
+      )}
     </div>
   );
 }

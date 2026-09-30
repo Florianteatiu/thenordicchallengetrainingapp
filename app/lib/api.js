@@ -14,6 +14,16 @@ export async function getProfile(id) {
   return check(await supabase.from("profiles").select("*").eq("id", id).maybeSingle());
 }
 
+// Coach sets a temporary password for a client (no email involved).
+export async function resetClientPassword(clientId, password) {
+  check(await supabase.rpc("coach_reset_password", { p_client_id: clientId, p_password: password }));
+}
+
+// Client has chosen their own password after a coach reset.
+export async function markPasswordChanged() {
+  check(await supabase.rpc("password_changed"));
+}
+
 export async function getCoachProfile() {
   return check(await supabase.from("profiles").select("id, full_name, avatar_url").eq("role", "coach").maybeSingle());
 }
