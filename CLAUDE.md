@@ -80,6 +80,14 @@ the live session reuses `ExerciseSets`/`BlockResult`/`RestBar` from `client/Work
 Workout templates + exercise library are shared; shared pages build links with
 `useCoachBase()` (`lib/base.js`). Importing Florian's past logs = backdated
 `pt_sessions` (+ a workout copy per session) and `pt_set_logs`.
+Small groups (1–8): `pt_groups`, `pt_group_members`, `pt_group_sessions`. A group
+session is a container: each person present gets an ordinary `pt_sessions` row
+(`group_session_id`), so history/last-time/lift charts are shared with their 1-to-1
+sessions. Up to two workouts (A/B) per group session = people share `workout_id`.
+Deleting a group keeps its sessions; deleting a group session deletes its member
+sessions. Pages `pt/PtGroupsPage`, `PtGroupPage`, `PtGroupSessionPage` (exercise-first:
+one `SetsGrid` per person under each exercise; `SetsGrid`/`ExerciseHeader` live in
+client/WorkoutPlayer.jsx).
 
 ## Roadmap
 - Phase 1 (done): auth, exercise library, workout + program templates,

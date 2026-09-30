@@ -244,6 +244,7 @@ export default function PtClientPage() {
                   <div style={{ fontWeight: 700 }} className="ellipsis">{sessionTitle(s)}</div>
                   <div className="small muted ellipsis">
                     {formatDate(s.session_date, { weekday: "long" })}
+                    {s.group_session ? ` · Group: ${s.group_session.group_name}` : ""}
                     {s.notes ? ` · “${s.notes}”` : ""}
                   </div>
                 </div>

@@ -32,6 +32,9 @@ import PtLayout from "./pt/PtLayout";
 import PtClientsPage from "./pt/PtClientsPage";
 import PtClientPage from "./pt/PtClientPage";
 import PtSessionPage from "./pt/PtSessionPage";
+import PtGroupsPage from "./pt/PtGroupsPage";
+import PtGroupPage from "./pt/PtGroupPage";
+import PtGroupSessionPage from "./pt/PtGroupSessionPage";
 
 export default function App() {
   const { session, profile, setProfile, loading, profileError, recovering, signOut } = useAuth();
@@ -64,9 +67,12 @@ export default function App() {
     return (
       <Routes>
         <Route path="/pt/sessions/:id" element={<PtSessionPage />} />
+        <Route path="/pt/group-sessions/:id" element={<PtGroupSessionPage />} />
         <Route path="/pt" element={<PtLayout />}>
           <Route index element={<PtClientsPage />} />
           <Route path="clients/:id" element={<PtClientPage />} />
+          <Route path="groups" element={<PtGroupsPage />} />
+          <Route path="groups/:id" element={<PtGroupPage />} />
           <Route path="workouts" element={<WorkoutsPage />} />
           <Route path="workouts/:id" element={<WorkoutBuilderPage />} />
           <Route path="library" element={<LibraryPage />} />

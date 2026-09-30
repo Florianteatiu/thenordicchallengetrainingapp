@@ -549,3 +549,14 @@ button.event-row { cursor: pointer; }
 
 /* Sub-filter chips (e.g. upper / lower / full body under Strength) */
 .chips-sub .chip { padding: 4px 10px; font-size: 12px; }
+
+/* ---------- Nordic PT groups ---------- */
+.card-on { border-color: var(--yellow); background: var(--yellow-soft); }
+.check-dot { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--line-strong); flex-shrink: 0; }
+.check-dot.on { background: var(--yellow); border-color: var(--yellow); box-shadow: inset 0 0 0 3px var(--surface); }
+.seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px; gap: 2px; max-width: 100%; overflow-x: auto; }
+.seg button { border: none; background: transparent; color: var(--text-2); font-weight: 700; font-size: 13px; padding: 6px 12px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.seg button.on { background: var(--yellow); color: var(--on-yellow); }
+.seg-full { display: flex; width: 100%; }
+.seg-full button { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.person-sets { margin-top: 12px; padding: 10px 10px 8px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); }

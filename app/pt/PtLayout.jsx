@@ -1,9 +1,10 @@
 import { Link, NavLink, Outlet } from "react-router-dom";
-import { Dumbbell, Library, Users } from "lucide-react";
+import { Dumbbell, Library, Users, UsersRound } from "lucide-react";
 import logo from "../assets/logo.png";
 
 const TABS = [
   { to: "/pt", label: "Clients", icon: Users, end: true },
+  { to: "/pt/groups", label: "Groups", icon: UsersRound },
   { to: "/pt/workouts", label: "Workouts", icon: Dumbbell },
   { to: "/pt/library", label: "Exercises", icon: Library },
 ];
