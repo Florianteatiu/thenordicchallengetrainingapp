@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Copy, Play, Plus, Search, Trash2, X } from "lucide-react";
+import { ArrowLeft, CalendarClock, Copy, Play, Plus, Search, Trash2, X } from "lucide-react";
 import {
   activateProgram,
   addBlankWorkoutToDay,
@@ -20,6 +20,100 @@ import { DAY_SHORT, formatDate, programDayDate, todayISO } from "../lib/dates";
 import { formatLabel } from "../lib/format";
 import { dayStatus, sessionsByDay } from "../lib/gamify";
 import { CommitInput, ErrorBox, Modal, PageLoader, useAsync } from "../components/ui";
+
+// Move a workout to another day (works on a phone, unlike drag and drop).
+// Optionally does the same for that weekday in every later week, which is
+// what a client schedule change usually means.
+function MoveModal({ program, dayRow, onClose, onMoved }) {
+  const [day, setDay] = useState(dayRow.day);
+  const [week, setWeek] = useState(dayRow.week);
+  const later = program.days.filter((d) => d.day === dayRow.day && d.week > dayRow.week);
+  const [allLater, setAllLater] = useState(later.length > 0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const fromName = DAY_LONG[dayRow.day - 1];
+  const unchanged = day === dayRow.day && week === dayRow.week;
+  const targetDate = programDayDate(program.start_date, allLater ? dayRow.week : week, day);
+
+  async function move() {
+    setBusy(true);
+    setError(null);
+    try {
+      if (allLater) {
+        // Each week's workout stays in its own week; only the weekday changes.
+        for (const d of [dayRow, ...later]) await moveProgramDay(d.id, d.week, day);
+      } else {
+        await moveProgramDay(dayRow.id, week, day);
+      }
+      onMoved();
+    } catch (e) {
+      setError(e);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      title="Move workout"
+      onClose={onClose}
+      footer={
+        <>
+          <button className="btn btn-ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="btn btn-primary" onClick={move} disabled={busy || unchanged}>
+            {busy ? "Moving…" : "Move"}
+          </button>
+        </>
+      }
+    >
+      <div className="col gap-16">
+        <div className="small muted">
+          <b style={{ color: "var(--text)" }}>{dayRow.workout?.title}</b> · Week {dayRow.week}, {fromName}
+        </div>
+        <div className="field">
+          <span>Move to</span>
+          <div className="chips">
+            {DAY_SHORT.map((label, i) => (
+              <button key={label} type="button" className={`chip${day === i + 1 ? " active" : ""}`} onClick={() => setDay(i + 1)}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {later.length > 0 && (
+          <label className="row small" style={{ cursor: "pointer", alignItems: "flex-start" }}>
+            <input type="checkbox" checked={allLater} onChange={(e) => setAllLater(e.target.checked)} style={{ marginTop: 3 }} />
+            <span>
+              Also move the {fromName} workouts in the later weeks (weeks {dayRow.week + 1}–{program.weeks}) to {DAY_LONG[day - 1]}
+            </span>
+          </label>
+        )}
+        {!allLater && program.weeks > 1 && (
+          <label className="field" style={{ maxWidth: 200 }}>
+            <span>Week</span>
+            <select className="select" value={week} onChange={(e) => setWeek(Number(e.target.value))}>
+              {Array.from({ length: program.weeks }, (_, i) => i + 1).map((w) => (
+                <option key={w} value={w}>
+                  Week {w}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {targetDate && !unchanged && (
+          <div className="tiny faint">
+            {allLater && later.length ? "First one lands on " : "Lands on "}
+            {formatDate(targetDate, { weekday: "long", day: "numeric", month: "long" })}. The client sees the change next time they open the app.
+          </div>
+        )}
+        <ErrorBox error={error} />
+      </div>
+    </Modal>
+  );
+}
+
+const DAY_LONG = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 function AddWorkoutModal({ programId, week, day, onClose, onAdded }) {
   const navigate = useNavigate();
@@ -131,6 +225,7 @@ export default function ProgramPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [adding, setAdding] = useState(null); // {week, day}
+  const [moving, setMoving] = useState(null); // program day row
   const [copying, setCopying] = useState(null); // week
   const [dragId, setDragId] = useState(null);
   const [dropCell, setDropCell] = useState(null);
@@ -268,6 +363,7 @@ export default function ProgramPage() {
               onAdd={(day) => setAdding({ week, day })}
               onOpen={(d) => navigate(`/coach/workouts/${d.workout_id}?back=/coach/programs/${program.id}`)}
               onRemove={(d) => window.confirm(`Remove "${d.workout?.title}" from this day?`) && run(() => removeProgramDay(d.id))}
+              onMove={(d) => setMoving(d)}
               onCopyWeek={() => setCopying(week)}
               onRemoveWeek={() =>
                 window.confirm(`Delete week ${week} and all its workouts? Later weeks move up.`) && run(() => removeWeek(program.id, week, program.weeks))
@@ -280,16 +376,27 @@ export default function ProgramPage() {
         <button className="btn btn-ghost btn-sm" onClick={() => saveMeta({ weeks: program.weeks + 1 })} disabled={program.weeks >= 52}>
           <Plus size={15} /> Add week
         </button>
-        <span className="tiny faint">Tip: drag a workout to move it to another day.</span>
+        <span className="tiny faint">Tip: tap the calendar icon on a workout to move it to another day (or drag it on a computer).</span>
       </div>
 
       {adding && <AddWorkoutModal programId={program.id} week={adding.week} day={adding.day} onClose={() => setAdding(null)} onAdded={() => { setAdding(null); reload(); }} />}
+      {moving && (
+        <MoveModal
+          program={program}
+          dayRow={moving}
+          onClose={() => setMoving(null)}
+          onMoved={() => {
+            setMoving(null);
+            reload();
+          }}
+        />
+      )}
       {copying && <CopyWeekModal program={program} fromWeek={copying} onClose={() => setCopying(null)} onCopied={() => { setCopying(null); reload(); }} />}
     </div>
   );
 }
 
-function WeekRow({ week, program, byCell, sessionMap, today, dropCell, setDropCell, onDrop, setDragId, onAdd, onOpen, onRemove, onCopyWeek, onRemoveWeek }) {
+function WeekRow({ week, program, byCell, sessionMap, today, dropCell, setDropCell, onDrop, setDragId, onAdd, onOpen, onRemove, onMove, onCopyWeek, onRemoveWeek }) {
   return (
     <>
       <div className="pg-week">
@@ -339,17 +446,31 @@ function WeekRow({ week, program, byCell, sessionMap, today, dropCell, setDropCe
                       {d.exerciseCount} ex{d.formats.some((f) => f !== "sets") ? ` · ${d.formats.filter((f) => f !== "sets").map(formatLabel).join(", ")}` : ""}
                     </div>
                   </span>
-                  <button
-                    className="icon-btn"
-                    style={{ width: 20, height: 20 }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onRemove(d);
-                    }}
-                    aria-label="Remove"
-                  >
-                    <X size={12} />
-                  </button>
+                  <div className="col" style={{ gap: 2 }}>
+                    <button
+                      className="icon-btn"
+                      style={{ width: 22, height: 22 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onMove(d);
+                      }}
+                      aria-label="Move to another day"
+                      title="Move to another day"
+                    >
+                      <CalendarClock size={13} />
+                    </button>
+                    <button
+                      className="icon-btn"
+                      style={{ width: 22, height: 22 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRemove(d);
+                      }}
+                      aria-label="Remove"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
                 </div>
               );
             })}
