@@ -90,6 +90,12 @@ sessions. Pages `pt/PtGroupsPage`, `PtGroupPage`, `PtGroupSessionPage` (exercise
 one `SetsGrid` per person under each exercise; `SetsGrid`/`ExerciseHeader` live in
 client/WorkoutPlayer.jsx).
 
+## Florian's coaching rules (apply when editing programs/weights)
+- Warm-up blocks (block name starts with "Warm up") never progress: keep their weights
+  light and the same every week. Weekly progression applies only to the main work:
+  +2.5 kg/week on big lower-body lifts (deadlift, squat, hip thrust, lunges), +1 kg/week
+  on upper-body lifts.
+
 ## Roadmap
 - Phase 1 (done): auth, exercise library, workout + program templates,
   calendar programs, logging for all formats, Today screen with companion, XP/streak.
