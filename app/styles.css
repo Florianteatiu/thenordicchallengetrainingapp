@@ -153,8 +153,13 @@ img { display: block; }
 .input-bare { background: transparent; border-color: transparent; padding-left: 0; }
 .input-bare:hover { border-color: var(--line); padding-left: 12px; }
 .input-bare:focus { padding-left: 12px; }
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+/* iOS/iPadOS date pickers ignore width and grow wider (and taller) than their
+   column, spilling into the next field. Strip the native look so they size
+   like every other input. */
+input[type="date"].input { -webkit-appearance: none; appearance: none; display: block; min-width: 0; min-height: 0; text-align: left; }
+input[type="date"].input::-webkit-date-and-time-value { text-align: left; margin: 0; }
 .error-box { background: var(--red-soft); color: var(--red); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 13.5px; }
 .ok-box { background: var(--green-soft); color: var(--green); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 13.5px; }
 
@@ -285,6 +290,7 @@ img { display: block; }
 .set-grid { display: grid; gap: 6px; margin-top: 10px; }
 .set-row { display: grid; grid-template-columns: 34px 1fr 1fr 44px; gap: 6px; align-items: center; }
 .set-row.one { grid-template-columns: 34px 1fr 44px; }
+.set-row.three { grid-template-columns: 34px 1fr 1fr 1fr 44px; }
 .set-row .input { text-align: center; padding: 9px 6px; }
 .set-num { font-size: 13px; font-weight: 800; color: var(--text-3); text-align: center; }
 .set-head { font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; text-align: center; }

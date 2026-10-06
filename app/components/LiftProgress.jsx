@@ -39,12 +39,13 @@ function Chart({ points }) {
   const P = { l: 34, r: 10, t: 12, b: 22 };
   const values = points.map((p) => p.est);
   const min = Math.floor(Math.min(...values) * 0.95);
-  const max = Math.ceil(Math.max(...values) * 1.03) || 1;
+  const max = Math.max(Math.ceil(Math.max(...values) * 1.03), min + 1);
   const x = (i) => P.l + (points.length === 1 ? (W - P.l - P.r) / 2 : (i / (points.length - 1)) * (W - P.l - P.r));
   const y = (v) => P.t + (1 - (v - min) / (max - min || 1)) * (H - P.t - P.b);
   const line = points.map((p, i) => `${x(i).toFixed(1)},${y(p.est).toFixed(1)}`).join(" ");
   const area = `${x(0)},${H - P.b} ${line} ${x(points.length - 1)},${H - P.b}`;
-  const ticks = [min, Math.round((min + max) / 2), max];
+  // Unique values only: a repeated tick label would be drawn twice on top of itself.
+  const ticks = [...new Set([min, Math.round((min + max) / 2), max])];
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="lift-chart" role="img" aria-label="Estimated max over time">
@@ -54,8 +55,8 @@ function Chart({ points }) {
           <stop offset="100%" stopColor="#FFE234" stopOpacity="0" />
         </linearGradient>
       </defs>
-      {ticks.map((t) => (
-        <g key={t}>
+      {ticks.map((t, i) => (
+        <g key={i}>
           <line x1={P.l} x2={W - P.r} y1={y(t)} y2={y(t)} stroke="rgba(255,255,255,0.07)" />
           <text x={P.l - 6} y={y(t) + 3.5} textAnchor="end" fontSize="9.5" fill="#75736f">
             {t}
