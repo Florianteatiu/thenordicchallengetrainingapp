@@ -290,6 +290,7 @@ input[type="date"].input::-webkit-date-and-time-value { text-align: left; margin
 .set-grid { display: grid; gap: 6px; margin-top: 10px; }
 .set-row { display: grid; grid-template-columns: 34px 1fr 1fr 44px; gap: 6px; align-items: center; }
 .set-row.one { grid-template-columns: 34px 1fr 44px; }
+.set-row.three { grid-template-columns: 34px 1fr 1fr 1fr 44px; }
 .set-row .input { text-align: center; padding: 9px 6px; }
 .set-num { font-size: 13px; font-weight: 800; color: var(--text-3); text-align: center; }
 .set-head { font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; text-align: center; }

@@ -51,27 +51,45 @@ const firstNumber = (text) => {
 
 // ---------- One set row ----------
 
+// Distance is typed in metres ("250"); a "k"/"km" suffix means kilometres ("5k").
+function parseDistance(text) {
+  const t = String(text ?? "").trim().toLowerCase().replace(",", ".");
+  if (!t) return null;
+  const n = parseFloat(t);
+  if (!Number.isFinite(n)) return null;
+  return Math.round(/k/.test(t) ? n * 1000 : n);
+}
+
+// Cardio (time and distance + time) is logged as work + rest per set, so a
+// Tabata is 8 sets of 0:20 work / 0:10 rest.
+const hasRest = (tracking) => tracking === "time" || tracking === "distance_time";
+
 function SetRow({ n, tag, tracking, logged, defaults, onToggle, onUpdate }) {
   const init = (v) => (v == null ? "" : String(v));
+  const clock = (v) => (v == null ? "" : formatClock(v));
   const [load, setLoad] = useState(init(logged?.load_kg));
   const [reps, setReps] = useState(init(logged?.reps));
-  const [time, setTime] = useState(logged?.duration_sec != null ? formatClock(logged.duration_sec) : "");
-  const [km, setKm] = useState(logged?.distance_m != null ? String(+(logged.distance_m / 1000).toFixed(2)) : "");
+  const [time, setTime] = useState(clock(logged?.duration_sec));
+  const [rest, setRestText] = useState(clock(logged?.rest_sec));
+  const [dist, setDist] = useState(init(logged?.distance_m));
   const done = Boolean(logged);
 
   const values = () => ({
     load_kg: tracking === "weight_reps" || tracking === "weight_time" ? numOrNull(load) ?? defaults.load : null,
     reps: tracking === "weight_reps" || tracking === "reps" ? numOrNull(reps) ?? defaults.reps : null,
     duration_sec: tracking === "time" || tracking === "distance_time" || tracking === "weight_time" ? parseDuration(time) ?? defaults.duration : null,
-    distance_m: tracking === "distance_time" ? (numOrNull(km) != null ? Math.round(numOrNull(km) * 1000) : defaults.distance) : null,
+    distance_m: tracking === "distance_time" ? parseDistance(dist) ?? defaults.distance : null,
+    ...(hasRest(tracking) ? { rest_sec: parseDuration(rest) ?? defaults.rest } : {}),
   });
 
   const blur = () => done && onUpdate(values());
   const ph = (v) => (v == null ? "–" : String(v));
-  const two = tracking === "weight_reps" || tracking === "distance_time" || tracking === "weight_time";
+  const timeInput = (value, set, def, fallback) => (
+    <input className="input" inputMode="numeric" placeholder={def ? formatClock(def) : fallback} value={value} onChange={(e) => set(e.target.value)} onBlur={blur} />
+  );
 
   return (
-    <div className={`set-row${two ? "" : " one"}${done ? " done" : ""}`}>
+    <div className={`set-row${COLS[HEADS[tracking].length]}${done ? " done" : ""}`}>
       <div className="set-num">{tag ?? n}</div>
       {tracking === "weight_reps" && (
         <>
@@ -82,17 +100,17 @@ function SetRow({ n, tag, tracking, logged, defaults, onToggle, onUpdate }) {
       {tracking === "weight_time" && (
         <>
           <input className="input" inputMode="decimal" placeholder={ph(defaults.load)} value={load} onChange={(e) => setLoad(e.target.value)} onBlur={blur} />
-          <input className="input" inputMode="numeric" placeholder={defaults.duration ? formatClock(defaults.duration) : "0:30"} value={time} onChange={(e) => setTime(e.target.value)} onBlur={blur} />
+          {timeInput(time, setTime, defaults.duration, "0:30")}
         </>
       )}
       {tracking === "reps" && <input className="input" inputMode="numeric" placeholder={ph(defaults.reps)} value={reps} onChange={(e) => setReps(e.target.value)} onBlur={blur} />}
-      {tracking === "time" && (
-        <input className="input" inputMode="numeric" placeholder={defaults.duration ? formatClock(defaults.duration) : "0:30"} value={time} onChange={(e) => setTime(e.target.value)} onBlur={blur} />
-      )}
       {tracking === "distance_time" && (
+        <input className="input" inputMode="decimal" placeholder={defaults.distance ? String(defaults.distance) : "m"} value={dist} onChange={(e) => setDist(e.target.value)} onBlur={blur} />
+      )}
+      {hasRest(tracking) && (
         <>
-          <input className="input" inputMode="decimal" placeholder={defaults.distance ? String(defaults.distance / 1000) : "km"} value={km} onChange={(e) => setKm(e.target.value)} onBlur={blur} />
-          <input className="input" inputMode="numeric" placeholder={defaults.duration ? formatClock(defaults.duration) : "mm:ss"} value={time} onChange={(e) => setTime(e.target.value)} onBlur={blur} />
+          {timeInput(time, setTime, defaults.duration, "0:20")}
+          {timeInput(rest, setRestText, defaults.rest, "0:10")}
         </>
       )}
       <button className={`check${done ? " on" : ""}`} onClick={() => onToggle(values())} aria-label={done ? "Undo set" : "Complete set"}>
@@ -106,15 +124,25 @@ const HEADS = {
   weight_reps: ["kg", "reps"],
   weight_time: ["kg", "time"],
   reps: ["reps"],
-  time: ["time"],
-  distance_time: ["km", "time"],
+  time: ["work", "rest"],
+  distance_time: ["metres", "work", "rest"],
 };
+const COLS = { 1: " one", 2: "", 3: " three" };
 
 // ---------- Set grid (shared by the client player and Nordic PT) ----------
 
 export function lastTimeText(last) {
   return last.sets
-    .map((s) => [s.load_kg != null && `${+s.load_kg}kg`, s.reps != null && `${s.reps}`, s.distance_m != null && formatDistance(s.distance_m), s.duration_sec != null && formatClock(s.duration_sec)].filter(Boolean).join("×"))
+    .map((s) =>
+      [
+        s.load_kg != null && `${+s.load_kg}kg`,
+        s.reps != null && `${s.reps}`,
+        s.distance_m != null && formatDistance(s.distance_m),
+        s.duration_sec != null && (s.rest_sec ? `${formatClock(s.duration_sec)} on/${formatClock(s.rest_sec)} off` : formatClock(s.duration_sec)),
+      ]
+        .filter(Boolean)
+        .join("×"),
+    )
     .join(", ");
 }
 
@@ -128,6 +156,7 @@ function setDefaults(item, last, n) {
     reps: firstNumber(item.reps) ?? prev?.reps ?? null,
     duration: item.duration_sec ?? prev?.duration_sec ?? null,
     distance: item.distance_m ?? prev?.distance_m ?? null,
+    rest: item.rest_sec ?? prev?.rest_sec ?? null,
   };
 }
 
@@ -139,7 +168,7 @@ export function SetsGrid({ item, sets, last, extra, onAddSet, onToggle, onUpdate
   return (
     <>
       <div className="set-grid">
-        <div className={`set-row${HEADS[tracking].length === 2 ? "" : " one"}`}>
+        <div className={`set-row${COLS[HEADS[tracking].length]}`}>
           <div className="set-head">Set</div>
           {HEADS[tracking].map((h) => (
             <div key={h} className="set-head">
@@ -629,7 +658,8 @@ export default function WorkoutPlayer() {
         const s = await ensureSession();
         const row = { session_id: s.id, block_exercise_id: item.id, exercise_id: item.exercise_id, set_number: n, done: true, ...values };
         setSets((prev) => ({ ...prev, [item.id]: { ...(prev[item.id] ?? {}), [n]: { ...row, id: "pending" } } }));
-        if (restSec) setRest({ endsAt: Date.now() + restSec * 1000 });
+        const restFor = values.rest_sec ?? restSec;
+        if (restFor) setRest({ endsAt: Date.now() + restFor * 1000 });
         const saved = await upsertSetLog(row);
         setSets((prev) => ({ ...prev, [item.id]: { ...(prev[item.id] ?? {}), [n]: saved } }));
       }

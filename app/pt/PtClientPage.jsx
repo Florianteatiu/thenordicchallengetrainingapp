@@ -56,6 +56,9 @@ function StartSessionModal({ client, lastSession, onClose }) {
         <label className="field">
           <span>Date</span>
           <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value || todayISO())} />
+          <span className="tiny faint" style={{ fontWeight: 400 }}>
+            {date > todayISO() ? "Planning ahead: the session is saved for that day, ready to open when you train." : "Pick a later day to plan a session ahead."}
+          </span>
         </label>
         <ErrorBox error={error} />
         {lastSession?.workout_id &&
@@ -249,7 +252,7 @@ export default function PtClientPage() {
                   </div>
                 </div>
                 {s.rpe && <span className="pill pill-yellow">RPE {s.rpe}</span>}
-                {!s.completed_at && <span className="pill">Open</span>}
+                {!s.completed_at && (s.session_date > todayISO() ? <span className="pill pill-yellow">Planned</span> : <span className="pill">Open</span>)}
               </Link>
             ))}
           </div>

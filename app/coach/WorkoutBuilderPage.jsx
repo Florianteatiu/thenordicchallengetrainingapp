@@ -103,7 +103,7 @@ function ItemFields({ item, format, onChange, roundRest }) {
         </F>
       )}
       {showTime && !intervals && (
-        <F label="Time">
+        <F label={t === "weight_time" ? "Time" : "Work"}>
           <DurationInput value={item.duration_sec} onChange={(v) => set({ duration_sec: v })} />
         </F>
       )}

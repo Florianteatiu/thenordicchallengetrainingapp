@@ -342,7 +342,7 @@ export async function getLastPerformance(clientId, exerciseIds, excludeSessionId
   const rows = check(
     await supabase
       .from("set_logs")
-      .select("exercise_id, set_number, reps, load_kg, duration_sec, distance_m, created_at, session_id, session:workout_sessions!inner(client_id)")
+      .select("exercise_id, set_number, reps, load_kg, duration_sec, distance_m, rest_sec, created_at, session_id, session:workout_sessions!inner(client_id)")
       .in("exercise_id", exerciseIds)
       .eq("session.client_id", clientId)
       .neq("session_id", excludeSessionId)
@@ -629,7 +629,7 @@ export async function getPtLastPerformance(clientId, exerciseIds, excludeSession
   const rows = check(
     await supabase
       .from("pt_set_logs")
-      .select("exercise_id, set_number, reps, load_kg, duration_sec, distance_m, session_id, session:pt_sessions!inner(client_id, session_date, started_at)")
+      .select("exercise_id, set_number, reps, load_kg, duration_sec, distance_m, rest_sec, session_id, session:pt_sessions!inner(client_id, session_date, started_at)")
       .in("exercise_id", exerciseIds)
       .eq("session.client_id", clientId)
       .neq("session_id", excludeSessionId)

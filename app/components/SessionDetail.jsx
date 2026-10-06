@@ -13,7 +13,7 @@ function setText(s) {
   if (s.load_kg != null) parts.push(`${+s.load_kg} kg`);
   if (s.reps != null) parts.push(`${s.reps} reps`);
   if (s.distance_m != null) parts.push(formatDistance(s.distance_m));
-  if (s.duration_sec != null) parts.push(formatClock(s.duration_sec));
+  if (s.duration_sec != null) parts.push(s.rest_sec ? `${formatClock(s.duration_sec)} on / ${formatClock(s.rest_sec)} off` : formatClock(s.duration_sec));
   return parts.join(" × ") || "done";
 }
 

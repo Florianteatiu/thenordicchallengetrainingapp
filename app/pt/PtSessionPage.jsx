@@ -125,7 +125,8 @@ export default function PtSessionPage() {
       } else {
         const row = { session_id: id, block_exercise_id: item.id, exercise_id: item.exercise_id, set_number: n, done: true, ...values };
         setSets((prev) => ({ ...prev, [item.id]: { ...(prev[item.id] ?? {}), [n]: { ...row, id: "pending" } } }));
-        if (restSec) setRest({ endsAt: Date.now() + restSec * 1000 });
+        const restFor = values.rest_sec ?? restSec;
+        if (restFor) setRest({ endsAt: Date.now() + restFor * 1000 });
         const saved = await upsertPtSetLog(row);
         setSets((prev) => ({ ...prev, [item.id]: { ...(prev[item.id] ?? {}), [n]: saved } }));
       }
