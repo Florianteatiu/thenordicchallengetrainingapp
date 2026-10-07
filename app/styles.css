@@ -575,3 +575,6 @@ button.event-row { cursor: pointer; }
 .round-row .set-row { margin-top: 3px; }
 .round-row .set-num { color: var(--yellow); font-size: 12px; }
 .round-rest { text-align: right; margin-top: 4px; }
+
+/* Waiting-for-network note on session screens */
+.saving-note { background: var(--surface-2); color: var(--text-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 8px 12px; }

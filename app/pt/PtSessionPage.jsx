@@ -4,7 +4,6 @@ import { ArrowLeft, Check, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import {
   addExerciseToWorkout,
   deletePtSession,
-  deletePtSetLog,
   getPtLastPerformance,
   getPtSession,
   getPtSessionLogs,
@@ -12,13 +11,14 @@ import {
   listExercises,
   updatePtSession,
   upsertPtBlockLog,
-  upsertPtSetLog,
 } from "../lib/api";
 import { formatDate, todayISO } from "../lib/dates";
 import { blockSummary, formatLabel, isSetBased, prescription, setItemProps } from "../lib/format";
 import { unlockAudio } from "../lib/sound";
 import { CommitInput, ErrorBox, PageLoader, ProgressBar, useAsync } from "../components/ui";
 import ExercisePicker from "../components/ExercisePicker";
+import { queueSetLog, queueSetLogDelete } from "../lib/saveQueue";
+import SavingNote from "../components/SavingNote";
 import { BlockResult, ExerciseSets, RestBar, SupersetRounds, nextTimer, timerAfterSet } from "../client/WorkoutPlayer";
 import BlockTimer from "../client/BlockTimer";
 
@@ -110,41 +110,36 @@ export default function PtSessionPage() {
     }
   }
 
-  async function toggleSet(item, n, values, restSec = item.rest_sec) {
+  // Sets save through the queue: the screen updates straight away and the
+  // write retries until it lands, so bad gym signal never wipes a set.
+  const putSet = (item, n, row) =>
+    setSets((prev) => {
+      const copy = { ...(prev[item.id] ?? {}) };
+      if (row) copy[n] = row;
+      else delete copy[n];
+      return { ...prev, [item.id]: copy };
+    });
+
+  function toggleSet(item, n, values, restSec = item.rest_sec) {
     unlockAudio();
     setActionError(null);
-    const existing = sets[item.id]?.[n];
-    try {
-      if (existing) {
-        setSets((s) => {
-          const copy = { ...(s[item.id] ?? {}) };
-          delete copy[n];
-          return { ...s, [item.id]: copy };
-        });
-        await deletePtSetLog(id, item.id, n);
-      } else {
-        const row = { session_id: id, block_exercise_id: item.id, exercise_id: item.exercise_id, set_number: n, done: true, ...values };
-        setSets((prev) => ({ ...prev, [item.id]: { ...(prev[item.id] ?? {}), [n]: { ...row, id: "pending" } } }));
-        setRest(timerAfterSet(item, values, restSec));
-        const saved = await upsertPtSetLog(row);
-        setSets((prev) => ({ ...prev, [item.id]: { ...(prev[item.id] ?? {}), [n]: saved } }));
-      }
-    } catch (e) {
-      setActionError(e);
-      loadedFor.current = null;
-      reload();
+    if (sets[item.id]?.[n]) {
+      putSet(item, n, null);
+      queueSetLogDelete("pt_set_logs", id, item.id, n, { onError: setActionError });
+    } else {
+      const row = { session_id: id, block_exercise_id: item.id, exercise_id: item.exercise_id, set_number: n, done: true, ...values };
+      putSet(item, n, { ...row, id: "pending" });
+      setRest(timerAfterSet(item, values, restSec));
+      queueSetLog("pt_set_logs", row, { onSaved: (saved) => putSet(item, n, saved), onError: setActionError });
     }
   }
 
-  async function updateSet(item, n, values) {
+  function updateSet(item, n, values) {
     const existing = sets[item.id]?.[n];
-    if (!existing || existing.id === "pending") return;
-    try {
-      const saved = await upsertPtSetLog({ ...existing, ...values, id: undefined, created_at: undefined });
-      setSets((prev) => ({ ...prev, [item.id]: { ...(prev[item.id] ?? {}), [n]: saved } }));
-    } catch (e) {
-      setActionError(e);
-    }
+    if (!existing) return;
+    const row = { ...existing, ...values };
+    putSet(item, n, row);
+    queueSetLog("pt_set_logs", row, { onSaved: (saved) => putSet(item, n, saved), onError: setActionError });
   }
 
   async function saveBlock(block, values) {
@@ -215,6 +210,7 @@ export default function PtSessionPage() {
             <Check size={16} /> Session finished. You can still change anything.
           </div>
         )}
+        <SavingNote />
         <ErrorBox error={actionError} />
 
         {workout.blocks.map((block, bi) => (

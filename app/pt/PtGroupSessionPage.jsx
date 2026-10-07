@@ -6,14 +6,12 @@ import {
   addPtGroupSessionMember,
   deletePtGroupSession,
   deletePtSession,
-  deletePtSetLog,
   getPtGroupSession,
   listExercises,
   listPtClients,
   setPtGroupSessionDone,
   updatePtSession,
   upsertPtBlockLog,
-  upsertPtSetLog,
 } from "../lib/api";
 import { formatDate } from "../lib/dates";
 import { blockSummary, firstName, formatLabel, isSetBased, prescription, setItemProps } from "../lib/format";
@@ -22,6 +20,8 @@ import { CommitInput, ErrorBox, Modal, PageLoader, ProgressBar, useAsync } from 
 import ExercisePicker from "../components/ExercisePicker";
 import { BlockResult, ExerciseHeader, RestBar, SetsGrid, VideoButton, lastTimeText, nextTimer, timerAfterSet } from "../client/WorkoutPlayer";
 import BlockTimer from "../client/BlockTimer";
+import { queueSetLog, queueSetLogDelete } from "../lib/saveQueue";
+import SavingNote from "../components/SavingNote";
 
 // Who's in the session (and on which workout); add or remove people.
 function PeopleModal({ data, onClose, onAdded, onRemoved }) {
@@ -167,43 +167,37 @@ export default function PtGroupSessionPage() {
     }
   }
 
-  async function toggleSet(person, item, n, values, restSec = item.rest_sec) {
+  // Sets save through the queue (see PtSessionPage): never wiped by bad signal.
+  const putSet = (person, item, n, row) =>
+    setSets((prev) => {
+      const mine = { ...(prev[person.id] ?? {}) };
+      const forItem = { ...(mine[item.id] ?? {}) };
+      if (row) forItem[n] = row;
+      else delete forItem[n];
+      mine[item.id] = forItem;
+      return { ...prev, [person.id]: mine };
+    });
+
+  function toggleSet(person, item, n, values, restSec = item.rest_sec) {
     unlockAudio();
     setActionError(null);
-    const existing = sets[person.id]?.[item.id]?.[n];
-    const put = (row) =>
-      setSets((prev) => {
-        const mine = { ...(prev[person.id] ?? {}) };
-        const forItem = { ...(mine[item.id] ?? {}) };
-        if (row) forItem[n] = row;
-        else delete forItem[n];
-        mine[item.id] = forItem;
-        return { ...prev, [person.id]: mine };
-      });
-    try {
-      if (existing) {
-        put(null);
-        await deletePtSetLog(person.id, item.id, n);
-      } else {
-        const row = { session_id: person.id, block_exercise_id: item.id, exercise_id: item.exercise_id, set_number: n, done: true, ...values };
-        put({ ...row, id: "pending" });
-        setRest(timerAfterSet(item, values, restSec));
-        put(await upsertPtSetLog(row));
-      }
-    } catch (e) {
-      setActionError(e);
+    if (sets[person.id]?.[item.id]?.[n]) {
+      putSet(person, item, n, null);
+      queueSetLogDelete("pt_set_logs", person.id, item.id, n, { onError: setActionError });
+    } else {
+      const row = { session_id: person.id, block_exercise_id: item.id, exercise_id: item.exercise_id, set_number: n, done: true, ...values };
+      putSet(person, item, n, { ...row, id: "pending" });
+      setRest(timerAfterSet(item, values, restSec));
+      queueSetLog("pt_set_logs", row, { onSaved: (saved) => putSet(person, item, n, saved), onError: setActionError });
     }
   }
 
-  async function updateSet(person, item, n, values) {
+  function updateSet(person, item, n, values) {
     const existing = sets[person.id]?.[item.id]?.[n];
-    if (!existing || existing.id === "pending") return;
-    try {
-      const saved = await upsertPtSetLog({ ...existing, ...values, id: undefined, created_at: undefined });
-      setSets((prev) => ({ ...prev, [person.id]: { ...prev[person.id], [item.id]: { ...prev[person.id]?.[item.id], [n]: saved } } }));
-    } catch (e) {
-      setActionError(e);
-    }
+    if (!existing) return;
+    const row = { ...existing, ...values };
+    putSet(person, item, n, row);
+    queueSetLog("pt_set_logs", row, { onSaved: (saved) => putSet(person, item, n, saved), onError: setActionError });
   }
 
   async function saveBlock(person, block, values) {
@@ -261,6 +255,7 @@ export default function PtGroupSessionPage() {
             <Check size={16} /> Session finished. You can still edit the numbers.
           </div>
         )}
+        <SavingNote />
         <ErrorBox error={actionError} />
 
         {workout && (
