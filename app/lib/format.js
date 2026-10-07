@@ -45,7 +45,7 @@ export function setItemProps(block, index, letter) {
   const rest = Math.max(0, ...block.items.map((i) => i.rest_sec || 0));
   return {
     label: `${letter}${index + 1}`,
-    restSec: isLast ? rest : 0,
+    restSec: isLast ? rest || null : 0, // null = no rest planned (use the default)
     nextLabel: isLast ? null : `${letter}${index + 2}`,
   };
 }

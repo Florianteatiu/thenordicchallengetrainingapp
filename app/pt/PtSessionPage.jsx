@@ -19,7 +19,7 @@ import { blockSummary, formatLabel, isSetBased, prescription, setItemProps } fro
 import { unlockAudio } from "../lib/sound";
 import { CommitInput, ErrorBox, PageLoader, ProgressBar, useAsync } from "../components/ui";
 import ExercisePicker from "../components/ExercisePicker";
-import { BlockResult, ExerciseSets, RestBar, SupersetRounds } from "../client/WorkoutPlayer";
+import { BlockResult, ExerciseSets, RestBar, SupersetRounds, nextTimer, timerAfterSet } from "../client/WorkoutPlayer";
 import BlockTimer from "../client/BlockTimer";
 
 // One in-person session: Florian logs the client's sets on his phone as they
@@ -125,8 +125,7 @@ export default function PtSessionPage() {
       } else {
         const row = { session_id: id, block_exercise_id: item.id, exercise_id: item.exercise_id, set_number: n, done: true, ...values };
         setSets((prev) => ({ ...prev, [item.id]: { ...(prev[item.id] ?? {}), [n]: { ...row, id: "pending" } } }));
-        const restFor = values.rest_sec ?? restSec;
-        if (restFor) setRest({ endsAt: Date.now() + restFor * 1000 });
+        setRest(timerAfterSet(item, values, restSec));
         const saved = await upsertPtSetLog(row);
         setSets((prev) => ({ ...prev, [item.id]: { ...(prev[item.id] ?? {}), [n]: saved } }));
       }
@@ -356,7 +355,7 @@ export default function PtSessionPage() {
         </button>
       </div>
 
-      {rest && !timerBlock && <RestBar rest={rest} onDone={() => setRest(null)} onAdd={() => setRest((r) => ({ endsAt: r.endsAt + 15000 }))} />}
+      {rest && !timerBlock && <RestBar rest={rest} onDone={() => setRest(nextTimer)} onAdd={() => setRest((r) => ({ ...r, endsAt: r.endsAt + 15000 }))} />}
       {timerBlock && (
         <BlockTimer
           block={timerBlock}
