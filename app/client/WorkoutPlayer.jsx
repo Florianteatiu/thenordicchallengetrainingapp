@@ -60,6 +60,14 @@ function parseDistance(text) {
   return Math.round(/k/.test(t) ? n * 1000 : n);
 }
 
+// Phone number pads have no ":", so plain digits read like a clock:
+// "30" = 0:30, "130" = 1:30, "0030" = 0:30. With a colon it's as typed.
+function parseClockTyped(text) {
+  const t = String(text ?? "").trim();
+  if (!/^\d{3,}$/.test(t)) return parseDuration(t);
+  return Number(t.slice(0, -2)) * 60 + Number(t.slice(-2));
+}
+
 // Cardio (time and distance + time) is logged as work + rest per set, so a
 // Tabata is 8 sets of 0:20 work / 0:10 rest.
 const hasRest = (tracking) => tracking === "time" || tracking === "distance_time";
@@ -77,15 +85,27 @@ function SetRow({ n, tag, tracking, logged, defaults, onToggle, onUpdate }) {
   const values = () => ({
     load_kg: tracking === "weight_reps" || tracking === "weight_time" ? numOrNull(load) ?? defaults.load : null,
     reps: tracking === "weight_reps" || tracking === "reps" ? numOrNull(reps) ?? defaults.reps : null,
-    duration_sec: tracking === "time" || tracking === "distance_time" || tracking === "weight_time" ? parseDuration(time) ?? defaults.duration : null,
+    duration_sec: tracking === "time" || tracking === "distance_time" || tracking === "weight_time" ? parseClockTyped(time) ?? defaults.duration : null,
     distance_m: tracking === "distance_time" ? parseDistance(dist) ?? defaults.distance : null,
-    ...(hasRest(tracking) ? { rest_sec: parseDuration(rest) ?? defaults.rest } : {}),
+    ...(hasRest(tracking) ? { rest_sec: parseClockTyped(rest) ?? defaults.rest } : {}),
   });
 
   const blur = () => done && onUpdate(values());
   const ph = (v) => (v == null ? "–" : String(v));
+  // Show what was typed as a clock (30 -> 0:30) once the box is left.
   const timeInput = (value, set, def, fallback) => (
-    <input className="input" inputMode="numeric" placeholder={def ? formatClock(def) : fallback} value={value} onChange={(e) => set(e.target.value)} onBlur={blur} />
+    <input
+      className="input"
+      inputMode="numeric"
+      placeholder={def ? formatClock(def) : fallback}
+      value={value}
+      onChange={(e) => set(e.target.value)}
+      onBlur={() => {
+        const sec = parseClockTyped(value);
+        if (sec != null) set(formatClock(sec));
+        blur();
+      }}
+    />
   );
 
   return (
@@ -284,7 +304,7 @@ export function SupersetRounds({ block, letter, sets, last, prs, extraRounds = 0
                     tracking={tracking}
                     logged={sets[item.id]?.[n]}
                     defaults={setDefaults(item, last[item.exercise_id], n)}
-                    onToggle={(v) => onToggle(item, n, v, isLast ? rest : 0)}
+                    onToggle={(v) => onToggle(item, n, v, isLast ? rest || null : 0)}
                     onUpdate={(v) => onUpdate(item, n, v)}
                   />
                   {isLast && rest > 0 && <div className="tiny faint round-rest">Rest {formatClock(rest)}</div>}
@@ -376,6 +396,22 @@ export function BlockResult({ block, logged, prefill, onSave }) {
 
 // ---------- Rest timer bar ----------
 
+// What to count down after a set is ticked: timed exercises first count the
+// work, then rest. Rest = what's typed on the set, else the plan, else
+// DEFAULT_REST. restSec 0 means "no rest" (straight into the next superset
+// exercise).
+const DEFAULT_REST = 60;
+const TIMED = new Set(["time", "weight_time", "distance_time"]);
+export function timerAfterSet(item, values, restSec) {
+  const rest = values.rest_sec ?? (restSec === 0 ? 0 : restSec || DEFAULT_REST);
+  const work = TIMED.has(item.exercise?.tracking) && values.duration_sec && values.duration_sec <= 600 ? values.duration_sec : 0;
+  if (work) return { phase: "work", endsAt: Date.now() + work * 1000, restAfter: rest };
+  return rest ? { phase: "rest", endsAt: Date.now() + rest * 1000 } : null;
+}
+
+// After work comes rest; after rest, nothing.
+export const nextTimer = (t) => (t?.phase === "work" && t.restAfter ? { phase: "rest", endsAt: Date.now() + t.restAfter * 1000 } : null);
+
 export function RestBar({ rest, onDone, onAdd }) {
   const [now, setNow] = useState(Date.now());
   const fired = useRef(false);
@@ -385,22 +421,23 @@ export function RestBar({ rest, onDone, onAdd }) {
     return () => clearInterval(id);
   }, [rest.endsAt]);
   const left = Math.max(0, (rest.endsAt - now) / 1000);
+  const work = rest.phase === "work";
   useEffect(() => {
     if (left <= 0 && !fired.current) {
       fired.current = true;
       go();
       vibrate();
-      const t = setTimeout(onDone, 1200);
+      const t = setTimeout(onDone, work ? 300 : 1200);
       return () => clearTimeout(t);
     }
-  }, [left, onDone]);
+  }, [left, onDone, work]);
 
   return (
-    <div className="rest-bar">
+    <div className={`rest-bar${work ? " work" : ""}`}>
       <div className="rest-bar-inner">
         <Timer size={20} />
         <div className="grow">
-          <div className="tiny" style={{ fontWeight: 700, opacity: 0.7 }}>{left > 0 ? "REST" : "GO!"}</div>
+          <div className="tiny" style={{ fontWeight: 700, opacity: 0.7 }}>{work ? (left > 0 ? "WORK" : rest.restAfter ? "REST!" : "DONE!") : left > 0 ? "REST" : "GO!"}</div>
           <div className="display" style={{ fontSize: 30 }}>{formatClock(Math.ceil(left))}</div>
         </div>
         <button className="btn btn-sm btn-dark" onClick={onAdd}>+15s</button>
@@ -658,8 +695,7 @@ export default function WorkoutPlayer() {
         const s = await ensureSession();
         const row = { session_id: s.id, block_exercise_id: item.id, exercise_id: item.exercise_id, set_number: n, done: true, ...values };
         setSets((prev) => ({ ...prev, [item.id]: { ...(prev[item.id] ?? {}), [n]: { ...row, id: "pending" } } }));
-        const restFor = values.rest_sec ?? restSec;
-        if (restFor) setRest({ endsAt: Date.now() + restFor * 1000 });
+        setRest(timerAfterSet(item, values, restSec));
         const saved = await upsertSetLog(row);
         setSets((prev) => ({ ...prev, [item.id]: { ...(prev[item.id] ?? {}), [n]: saved } }));
       }
@@ -834,7 +870,7 @@ export default function WorkoutPlayer() {
         )}
       </div>
 
-      {rest && !timerBlock && <RestBar rest={rest} onDone={() => setRest(null)} onAdd={() => setRest((r) => ({ endsAt: r.endsAt + 15000 }))} />}
+      {rest && !timerBlock && <RestBar rest={rest} onDone={() => setRest(nextTimer)} onAdd={() => setRest((r) => ({ ...r, endsAt: r.endsAt + 15000 }))} />}
       {timerBlock && (
         <BlockTimer
           block={timerBlock}

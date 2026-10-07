@@ -20,7 +20,7 @@ import { blockSummary, firstName, formatLabel, isSetBased, prescription, setItem
 import { unlockAudio } from "../lib/sound";
 import { CommitInput, ErrorBox, Modal, PageLoader, ProgressBar, useAsync } from "../components/ui";
 import ExercisePicker from "../components/ExercisePicker";
-import { BlockResult, ExerciseHeader, SetsGrid, VideoButton, lastTimeText } from "../client/WorkoutPlayer";
+import { BlockResult, ExerciseHeader, RestBar, SetsGrid, VideoButton, lastTimeText, nextTimer, timerAfterSet } from "../client/WorkoutPlayer";
 import BlockTimer from "../client/BlockTimer";
 
 // Who's in the session (and on which workout); add or remove people.
@@ -111,6 +111,7 @@ export default function PtGroupSessionPage() {
   const [blockLogs, setBlockLogs] = useState({}); // sessionId -> blockId -> row
   const [extraSets, setExtraSets] = useState({}); // `${sessionId}:${itemId}` -> n
   const [timerBlock, setTimerBlock] = useState(null);
+  const [rest, setRest] = useState(null);
   const [prefill, setPrefill] = useState({});
   const [picking, setPicking] = useState(false);
   const [people, setPeople] = useState(false);
@@ -166,7 +167,7 @@ export default function PtGroupSessionPage() {
     }
   }
 
-  async function toggleSet(person, item, n, values) {
+  async function toggleSet(person, item, n, values, restSec = item.rest_sec) {
     unlockAudio();
     setActionError(null);
     const existing = sets[person.id]?.[item.id]?.[n];
@@ -186,6 +187,7 @@ export default function PtGroupSessionPage() {
       } else {
         const row = { session_id: person.id, block_exercise_id: item.id, exercise_id: item.exercise_id, set_number: n, done: true, ...values };
         put({ ...row, id: "pending" });
+        setRest(timerAfterSet(item, values, restSec));
         put(await upsertPtSetLog(row));
       }
     } catch (e) {
@@ -322,7 +324,8 @@ export default function PtGroupSessionPage() {
                                 last={last}
                                 extra={extraSets[key] ?? 0}
                                 onAddSet={() => setExtraSets((x) => ({ ...x, [key]: (x[key] ?? 0) + 1 }))}
-                                onToggle={(it, n, v) => toggleSet(p, it, n, v)}
+                                restSec={sp.restSec}
+                                onToggle={(it, n, v, r) => toggleSet(p, it, n, v, r)}
                                 onUpdate={(it, n, v) => updateSet(p, it, n, v)}
                               />
                             </div>
@@ -420,6 +423,7 @@ export default function PtGroupSessionPage() {
         </button>
       </div>
 
+      {rest && !timerBlock && <RestBar rest={rest} onDone={() => setRest(nextTimer)} onAdd={() => setRest((r) => ({ ...r, endsAt: r.endsAt + 15000 }))} />}
       {timerBlock && (
         <BlockTimer
           block={timerBlock}
