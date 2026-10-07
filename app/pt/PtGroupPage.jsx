@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, ChevronRight, Pencil, Play, Plus } from "lucide-react";
 import { deletePtGroup, getPtGroup, listWorkoutTemplates, savePtGroup, setPtGroupMembers, startPtGroupSession } from "../lib/api";
 import { formatDate, todayISO } from "../lib/dates";
+import { formatEstimate } from "../lib/format";
 import { Avatar, CommitInput, ErrorBox, Modal, PageLoader, useAsync } from "../components/ui";
 import { MemberPicker } from "./PtGroupsPage";
 
@@ -46,6 +47,7 @@ function TemplateSelect({ value, onChange, templates }) {
       {templates.map((t) => (
         <option key={t.id} value={t.id}>
           {t.title}
+          {t.estimateSec ? ` · ${formatEstimate(t.estimateSec)}` : ""}
         </option>
       ))}
     </select>
@@ -239,7 +241,7 @@ export default function PtGroupPage() {
                       {s.sessions.length} {s.sessions.length === 1 ? "person" : "people"} · {s.sessions.map((p) => (nameOf[p.client_id] ?? "").split(" ")[0]).filter(Boolean).join(", ")}
                     </div>
                   </div>
-                  {!s.completed_at && (s.session_date > todayISO() ? <span className="pill pill-yellow">Planned</span> : <span className="pill">Open</span>)}
+                  {s.session_date > todayISO() ? <span className="pill pill-yellow">Planned</span> : !s.completed_at && <span className="pill">Open</span>}
                 </Link>
               );
             })}

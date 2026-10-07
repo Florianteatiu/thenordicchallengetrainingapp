@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Check, Play, Plus, Trophy, UserPlus, X } from "lucide-react";
+import { ArrowLeft, Check, Pencil, Play, Plus, Trophy, UserPlus, X } from "lucide-react";
 import {
   addExerciseToWorkout,
   addPtGroupSessionMember,
@@ -13,8 +13,8 @@ import {
   updatePtSession,
   upsertPtBlockLog,
 } from "../lib/api";
-import { formatDate } from "../lib/dates";
-import { blockSummary, firstName, formatLabel, isSetBased, prescription, setItemProps } from "../lib/format";
+import { formatDate, todayISO } from "../lib/dates";
+import { blockSummary, estimateWorkoutSec, firstName, formatEstimate, formatLabel, isSetBased, prescription, setItemProps } from "../lib/format";
 import { unlockAudio } from "../lib/sound";
 import { CommitInput, ErrorBox, Modal, PageLoader, ProgressBar, useAsync } from "../components/ui";
 import ExercisePicker from "../components/ExercisePicker";
@@ -148,6 +148,7 @@ export default function PtGroupSessionPage() {
   const { session } = data;
   const done = Boolean(session.completed_at);
   const back = session.group_id ? `/pt/groups/${session.group_id}` : "/pt/groups";
+  const isPlannedAhead = !done && session.session_date > todayISO();
 
   // Progress across everyone and both workouts.
   let planned = 0;
@@ -253,6 +254,20 @@ export default function PtGroupSessionPage() {
         {done && (
           <div className="ok-box row gap-6">
             <Check size={16} /> Session finished. You can still edit the numbers.
+          </div>
+        )}
+        {isPlannedAhead && (
+          <div className="card card-tight small">
+            <b className="yellow">Planned for {formatDate(session.session_date, { weekday: "long", day: "numeric", month: "short" })}.</b> Changes save as you go. On the day, open it
+            from the group and train.
+          </div>
+        )}
+        {workout && (
+          <div className="row between wrap gap-8">
+            <div className="small muted">{estimateWorkoutSec(workout.blocks) > 0 ? `Estimated time ${formatEstimate(estimateWorkoutSec(workout.blocks))}` : "No exercises yet"}</div>
+            <Link to={`/pt/workouts/${workout.id}?back=/pt/group-sessions/${id}`} className="btn btn-sm btn-ghost">
+              <Pencil size={14} /> Edit exercises{data.workouts.length > 1 ? ` (${String.fromCharCode(65 + data.workouts.findIndex((w) => w.id === workout.id))})` : ""}
+            </Link>
           </div>
         )}
         <SavingNote />
@@ -398,9 +413,15 @@ export default function PtGroupSessionPage() {
           </div>
         )}
 
-        <button className={`btn btn-lg btn-block mt-8 ${done ? "btn-ghost" : "btn-primary"}`} onClick={toggleDone}>
-          <Check size={20} /> {done ? "Re-open session" : "Finish session"}
-        </button>
+        {isPlannedAhead ? (
+          <Link to={back} className="btn btn-primary btn-lg btn-block mt-8">
+            <Check size={20} /> Save plan
+          </Link>
+        ) : (
+          <button className={`btn btn-lg btn-block mt-8 ${done ? "btn-ghost" : "btn-primary"}`} onClick={toggleDone}>
+            <Check size={20} /> {done ? "Re-open session" : "Finish session"}
+          </button>
+        )}
         <button
           className="btn btn-danger btn-sm"
           style={{ alignSelf: "center" }}

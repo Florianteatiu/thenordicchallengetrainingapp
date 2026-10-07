@@ -253,7 +253,7 @@ export default function PtClientPage() {
                   </div>
                 </div>
                 {s.rpe && <span className="pill pill-yellow">RPE {s.rpe}</span>}
-                {!s.completed_at && (s.session_date > todayISO() ? <span className="pill pill-yellow">Planned</span> : <span className="pill">Open</span>)}
+                {s.session_date > todayISO() ? <span className="pill pill-yellow">Planned</span> : !s.completed_at && <span className="pill">Open</span>}
               </Link>
             ))}
           </div>
