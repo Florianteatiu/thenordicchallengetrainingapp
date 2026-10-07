@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowDown, ArrowLeft, ArrowUp, Copy, Plus, Trash2 } from "lucide-react";
 import { copyWorkout, getWorkout, listExercises, saveWorkout } from "../lib/api";
-import { FORMATS, formatClock, isSetBased, parseDuration } from "../lib/format";
+import { FORMATS, estimateWorkoutSec, exerciseMeta, formatClock, formatEstimate, isSetBased, parseDuration } from "../lib/format";
 import { useCoachBase } from "../lib/base";
 import { ErrorBox, PageLoader, useAsync } from "../components/ui";
 import ExercisePicker from "../components/ExercisePicker";
@@ -276,6 +276,11 @@ export default function WorkoutBuilderPage() {
         onChange={(e) => setDraft({ ...draft, title: e.target.value })}
         placeholder="Workout title"
       />
+      {estimateWorkoutSec(draft.blocks) > 0 && (
+        <div className="small muted mt-4">
+          Estimated time <b className="yellow">{formatEstimate(estimateWorkoutSec(draft.blocks))}</b> · counts the exercises here, so add your warm-up as a block to include it
+        </div>
+      )}
       <textarea
         className="textarea mt-8"
         style={{ minHeight: 56 }}
@@ -346,6 +351,7 @@ export default function WorkoutBuilderPage() {
                     <span style={{ fontWeight: 700 }} className="ellipsis">
                       {item.exercise?.name ?? "Exercise"}
                     </span>
+                    {exerciseMeta(item.exercise) && <span className="tiny muted nowrap">{exerciseMeta(item.exercise)}</span>}
                   </div>
                   <div className="row gap-4">
                     <button className="icon-btn" disabled={ii === 0} onClick={() => setBlock(block.id, { ...block, items: move(block.items, ii, -1) })} aria-label="Move up">

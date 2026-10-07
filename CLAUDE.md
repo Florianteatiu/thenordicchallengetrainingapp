@@ -16,14 +16,19 @@ end to end; explain in plain, non-technical language.
 
 ## Data model
 exercises (library; tracking weight_reps|weight_time|reps|time|distance_time; strength ones
-tagged body_region upper|lower|full) → workouts → workout_blocks (format:
+tagged body_region upper|lower|full; `equipment` picked from EQUIPMENT in lib/format.js, name is
+unique per name+equipment; `unilateral` = reps/time per side, timer runs left → switch → right) → workouts → workout_blocks (format:
 sets|superset|circuit|intervals|amrap|emom; sets + superset are "set-based", see
 `isSetBased`/`setItemProps` in lib/format.js — superset rest = max rest_sec, only after the
 last exercise; supersets are shown round by round by `SupersetRounds` in client/WorkoutPlayer.jsx,
 round n = set_number n of every exercise, and "Sets" is labelled "Rounds" in the builder) → block_exercises. programs (weeks, is_template, client_id, start_date, status
 draft|active|completed) → program_days (week, day 1=Mon, workout_id; each day owns a
 private workout copy). Logging: workout_sessions (per client + program_day),
-set_logs, block_logs. Week 1 starts on the Monday of start_date.
+set_logs, block_logs (set_logs/pt_set_logs have rest_sec: cardio logs metres + work + rest).
+Set ticks/edits go through `lib/saveQueue.js` (retries offline, survives restarts) — never
+write set logs directly. Ticking a set starts `timerAfterSet` (work for timed sets, then rest;
+60 s when no rest planned). Workout time estimate = `estimateWorkoutSec` in lib/format.js
+(tuned: ~4 s/rep, planned rest or 60 s, 2 min setup per exercise). Week 1 starts on the Monday of start_date.
 
 ## Brand
 The Nordic Challenge logo everywhere (`app/assets/logo.png`, icons in `public/icons`,

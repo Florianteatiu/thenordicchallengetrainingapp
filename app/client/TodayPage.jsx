@@ -3,7 +3,7 @@ import { Link, useOutletContext } from "react-router-dom";
 import { Check, ChevronRight, ClipboardCheck, Flame, Play, Trophy } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
 import { DAY_LETTER, addDays, formatDate, greetingForNow, mondayOf, todayISO } from "../lib/dates";
-import { firstName, formatLabel } from "../lib/format";
+import { firstName, formatEstimate, formatLabel } from "../lib/format";
 import { POINTS, dayStatus, levelFor, totalXp, workoutStreak } from "../lib/gamify";
 import { companionLine, MOODS } from "../lib/companion";
 import Companion from "../components/Companion";
@@ -25,6 +25,7 @@ export function WorkoutCard({ day, status, big }) {
           <div className={big ? "h2 mt-4" : "h3 mt-4"}>{day.workout?.title}</div>
           <div className="small mt-4 muted">
             {day.exerciseCount} {day.exerciseCount === 1 ? "exercise" : "exercises"}
+            {day.estimateSec ? ` · ${formatEstimate(day.estimateSec)}` : ""}
             {day.formats.filter((f) => f !== "sets").length > 0 && ` · ${day.formats.filter((f) => f !== "sets").map(formatLabel).join(", ")}`}
           </div>
         </div>

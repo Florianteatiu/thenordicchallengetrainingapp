@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { programDayDate } from "./dates";
+import { estimateWorkoutSec } from "./format";
 
 function check({ data, error }) {
   if (error) throw error;
@@ -64,6 +65,11 @@ export async function deleteExercise(id) {
 
 // ---------- Workouts ----------
 
+// Just enough of a workout to estimate how long it takes.
+const ESTIMATE_BLOCK_FIELDS =
+  "format, rounds, work_sec, rest_sec, time_cap_sec, block_exercises(id, sets, reps, duration_sec, distance_m, rest_sec, exercise:exercises(tracking, unilateral))";
+const estimateFromRows = (blocks) => estimateWorkoutSec((blocks ?? []).map(({ block_exercises, ...b }) => ({ ...b, items: block_exercises ?? [] })));
+
 const WORKOUT_SELECT = "*, workout_blocks(*, block_exercises(*, exercise:exercises(*)))";
 
 function normalizeWorkout(w) {
@@ -82,10 +88,17 @@ export async function getWorkout(id) {
 
 export async function listWorkoutTemplates() {
   const rows = check(
-    await supabase.from("workouts").select("id, title, description, updated_at, workout_blocks(format, block_exercises(id))").eq("is_template", true).order("title"),
+    await supabase
+      .from("workouts")
+      .select(
+        `id, title, description, updated_at, workout_blocks(${ESTIMATE_BLOCK_FIELDS})`,
+      )
+      .eq("is_template", true)
+      .order("title"),
   );
   return rows.map((w) => ({
     ...w,
+    estimateSec: estimateFromRows(w.workout_blocks),
     formats: [...new Set((w.workout_blocks ?? []).map((b) => b.format))],
     exerciseCount: (w.workout_blocks ?? []).reduce((n, b) => n + (b.block_exercises?.length ?? 0), 0),
   }));
@@ -177,7 +190,7 @@ export async function getProgram(id) {
   const program = check(
     await supabase
       .from("programs")
-      .select("*, program_days(*, workout:workouts(id, title, workout_blocks(format, block_exercises(id))))")
+      .select(`*, program_days(*, workout:workouts(id, title, workout_blocks(${ESTIMATE_BLOCK_FIELDS})))`)
       .eq("id", id)
       .single(),
   );
@@ -188,6 +201,7 @@ export async function getProgram(id) {
       date: programDayDate(program.start_date, d.week, d.day),
       formats: [...new Set((d.workout?.workout_blocks ?? []).map((b) => b.format))],
       exerciseCount: (d.workout?.workout_blocks ?? []).reduce((n, b) => n + (b.block_exercises?.length ?? 0), 0),
+      estimateSec: estimateFromRows(d.workout?.workout_blocks),
     }));
   delete program.program_days;
   return { ...program, days };
@@ -526,7 +540,7 @@ export async function listWeightedSets(clientId) {
   return check(
     await supabase
       .from("set_logs")
-      .select("exercise_id, reps, load_kg, created_at, session_id, exercise:exercises(name), session:workout_sessions!inner(client_id)")
+      .select("exercise_id, reps, load_kg, created_at, session_id, exercise:exercises(name, equipment), session:workout_sessions!inner(client_id)")
       .eq("session.client_id", clientId)
       .not("load_kg", "is", null)
       .gt("load_kg", 0)
@@ -656,7 +670,7 @@ export async function listPtWeightedSets(clientId) {
   const rows = check(
     await supabase
       .from("pt_set_logs")
-      .select("exercise_id, reps, load_kg, session_id, exercise:exercises(name), session:pt_sessions!inner(client_id, session_date)")
+      .select("exercise_id, reps, load_kg, session_id, exercise:exercises(name, equipment), session:pt_sessions!inner(client_id, session_date)")
       .eq("session.client_id", clientId)
       .not("load_kg", "is", null)
       .gt("load_kg", 0)

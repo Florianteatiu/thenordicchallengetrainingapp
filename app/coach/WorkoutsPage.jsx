@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Copy, Plus, Search, Trash2 } from "lucide-react";
 import { copyWorkout, createWorkout, deleteWorkout, listWorkoutTemplates } from "../lib/api";
-import { formatLabel } from "../lib/format";
+import { formatEstimate, formatLabel } from "../lib/format";
 import { useCoachBase } from "../lib/base";
 import { ErrorBox, PageLoader, useAsync } from "../components/ui";
 
@@ -69,7 +69,7 @@ export default function WorkoutsPage() {
             <div key={w.id} className="card col">
               <Link to={`${base}/workouts/${w.id}`} className="grow">
                 <div className="h3">{w.title}</div>
-                <div className="small muted mt-4">{w.exerciseCount} {w.exerciseCount === 1 ? "exercise" : "exercises"}</div>
+                <div className="small muted mt-4">{w.exerciseCount} {w.exerciseCount === 1 ? "exercise" : "exercises"}{w.estimateSec ? ` · ${formatEstimate(w.estimateSec)}` : ""}</div>
                 <div className="chips mt-8">
                   {w.formats.map((f) => (
                     <span key={f} className="pill">

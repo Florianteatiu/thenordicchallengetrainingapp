@@ -9,11 +9,18 @@ import { ErrorBox, Spinner, useAsync } from "./ui";
 const e1rm = (kg, reps) => (reps && reps > 1 && reps <= 12 ? kg * (1 + reps / 30) : kg);
 const round = (n) => Math.round(n * 2) / 2;
 
+// "Chest press · Smith machine" (equipment left out when the name says it).
+const liftName = (ex) => {
+  if (!ex) return "Exercise";
+  const eq = ex.equipment && !ex.name.toLowerCase().includes(ex.equipment.toLowerCase()) ? ex.equipment : null;
+  return eq ? `${ex.name} · ${eq}` : ex.name;
+};
+
 function summarize(rows) {
   const byExercise = new Map();
   for (const r of rows) {
     const kg = Number(r.load_kg);
-    const ex = byExercise.get(r.exercise_id) ?? { id: r.exercise_id, name: r.exercise?.name ?? "Exercise", sessions: new Map(), sets: 0 };
+    const ex = byExercise.get(r.exercise_id) ?? { id: r.exercise_id, name: liftName(r.exercise), sessions: new Map(), sets: 0 };
     ex.sets += 1;
     const s = ex.sessions.get(r.session_id) ?? { date: r.created_at.slice(0, 10), top: 0, est: 0, topReps: 0 };
     if (kg > s.top || (kg === s.top && (r.reps ?? 0) > s.topReps)) {

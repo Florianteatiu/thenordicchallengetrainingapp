@@ -2,12 +2,12 @@ import { useMemo, useState } from "react";
 import { Pencil, Plus, Search, Upload, Video } from "lucide-react";
 import { deleteExercise, listExercises, saveExercise, uploadExerciseVideo } from "../lib/api";
 import VideoEmbed from "../components/VideoEmbed";
-import { BODY_REGIONS, CATEGORIES, TRACKING, categoryLabel, regionLabel } from "../lib/format";
+import { BODY_REGIONS, CATEGORIES, EQUIPMENT, TRACKING, categoryLabel, exerciseMeta, regionLabel } from "../lib/format";
 import RegionChips, { matchesFilter } from "../components/RegionChips";
 import { ErrorBox, Modal, PageLoader, useAsync } from "../components/ui";
 
 function ExerciseModal({ exercise, onClose, onSaved, onDeleted }) {
-  const [form, setForm] = useState({ name: "", category: "strength", tracking: "weight_reps", video_url: "", cues: "", journey_kind: null, body_region: null, ...exercise });
+  const [form, setForm] = useState({ name: "", category: "strength", tracking: "weight_reps", video_url: "", cues: "", journey_kind: null, body_region: null, equipment: null, unilateral: false, ...exercise });
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
@@ -18,7 +18,7 @@ function ExerciseModal({ exercise, onClose, onSaved, onDeleted }) {
     setBusy(true);
     setError(null);
     try {
-      const { id, name, category, tracking, video_url, cues, journey_kind, body_region } = form;
+      const { id, name, category, tracking, video_url, cues, journey_kind, body_region, equipment, unilateral } = form;
       const saved = await saveExercise({
         id,
         name: name.trim(),
@@ -28,10 +28,12 @@ function ExerciseModal({ exercise, onClose, onSaved, onDeleted }) {
         cues: cues?.trim() || null,
         journey_kind: tracking === "distance_time" ? journey_kind || null : null,
         body_region: category === "strength" ? body_region || null : null,
+        equipment: equipment || null,
+        unilateral: Boolean(unilateral),
       });
       onSaved(saved);
     } catch (e) {
-      setError(e.code === "23505" ? "An exercise with that name already exists." : e);
+      setError(e.code === "23505" ? "An exercise with that name and equipment already exists." : e);
       setBusy(false);
     }
   }
@@ -111,6 +113,31 @@ function ExerciseModal({ exercise, onClose, onSaved, onDeleted }) {
             </select>
           </label>
         </div>
+        <div className="grid-2">
+          <label className="field">
+            <span>Equipment</span>
+            <select className="select" value={form.equipment ?? ""} onChange={(e) => set({ equipment: e.target.value || null })}>
+              <option value="">None / not set</option>
+              {EQUIPMENT.map((x) => (
+                <option key={x} value={x}>
+                  {x}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="field">
+            <span>Sides</span>
+            <div className="chips">
+              <button type="button" className={`chip${!form.unilateral ? " active" : ""}`} onClick={() => set({ unilateral: false })}>
+                Both together
+              </button>
+              <button type="button" className={`chip${form.unilateral ? " active" : ""}`} onClick={() => set({ unilateral: true })}>
+                Each side
+              </button>
+            </div>
+          </div>
+        </div>
+        {form.unilateral && <div className="tiny faint" style={{ marginTop: -8 }}>Reps and time are per side. Timed sets run left, then right, then rest.</div>}
         {form.category === "strength" && (
           <div className="field">
             <span>Body part</span>
@@ -160,11 +187,15 @@ export default function LibraryPage() {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("all");
   const [region, setRegion] = useState("all");
+  const [equipment, setEquipment] = useState("");
   const [editing, setEditing] = useState(null);
 
   const list = useMemo(
-    () => (data ?? []).filter((e) => matchesFilter(e, cat, region) && e.name.toLowerCase().includes(q.trim().toLowerCase())),
-    [data, q, cat, region],
+    () =>
+      (data ?? []).filter(
+        (e) => matchesFilter(e, cat, region) && (!equipment || e.equipment === equipment) && e.name.toLowerCase().includes(q.trim().toLowerCase()),
+      ),
+    [data, q, cat, region, equipment],
   );
 
   if (loading && !data) return <PageLoader />;
@@ -188,6 +219,14 @@ export default function LibraryPage() {
           <Search size={16} style={{ position: "absolute", left: 12, color: "var(--text-3)" }} />
           <input className="input" style={{ paddingLeft: 36 }} placeholder="Search" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
+        <select className="select" style={{ width: "auto" }} value={equipment} onChange={(e) => setEquipment(e.target.value)} aria-label="Equipment">
+          <option value="">All equipment</option>
+          {EQUIPMENT.map((x) => (
+            <option key={x} value={x}>
+              {x}
+            </option>
+          ))}
+        </select>
         <div className="chips">
           <button className={`chip${cat === "all" ? " active" : ""}`} onClick={() => setCat("all")}>
             All ({data?.length ?? 0})
@@ -222,6 +261,7 @@ export default function LibraryPage() {
               <tr key={e.id} className="clickable" onClick={() => setEditing(e)}>
                 <td>
                   <div style={{ fontWeight: 700 }}>{e.name}</div>
+                  {exerciseMeta(e) && <div className="tiny muted">{exerciseMeta(e)}</div>}
                   {e.cues && <div className="tiny faint ellipsis" style={{ maxWidth: 380 }}>{e.cues}</div>}
                 </td>
                 <td>

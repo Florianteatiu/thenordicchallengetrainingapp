@@ -17,7 +17,7 @@ import {
   updateProgram,
 } from "../lib/api";
 import { DAY_SHORT, formatDate, programDayDate, todayISO } from "../lib/dates";
-import { formatLabel } from "../lib/format";
+import { formatEstimate, formatLabel } from "../lib/format";
 import { dayStatus, sessionsByDay } from "../lib/gamify";
 import { CommitInput, ErrorBox, Modal, PageLoader, useAsync } from "../components/ui";
 
@@ -163,6 +163,7 @@ function AddWorkoutModal({ programId, week, day, onClose, onAdded }) {
             <div style={{ fontWeight: 700 }}>{t.title}</div>
             <div className="tiny muted">
               {t.exerciseCount} {t.exerciseCount === 1 ? "exercise" : "exercises"} · {t.formats.map(formatLabel).join(", ") || "empty"}
+              {t.estimateSec ? ` · ${formatEstimate(t.estimateSec)}` : ""}
             </div>
           </button>
         ))}
@@ -443,7 +444,7 @@ function WeekRow({ week, program, byCell, sessionMap, today, dropCell, setDropCe
                   <span className="grow">
                     {d.workout?.title}
                     <div className="tiny faint" style={{ fontWeight: 500 }}>
-                      {d.exerciseCount} ex{d.formats.some((f) => f !== "sets") ? ` · ${d.formats.filter((f) => f !== "sets").map(formatLabel).join(", ")}` : ""}
+                      {d.exerciseCount} ex{d.estimateSec ? ` · ${formatEstimate(d.estimateSec).replace("≈ ", "~")}` : ""}{d.formats.some((f) => f !== "sets") ? ` · ${d.formats.filter((f) => f !== "sets").map(formatLabel).join(", ")}` : ""}
                     </div>
                   </span>
                   <div className="col" style={{ gap: 2 }}>

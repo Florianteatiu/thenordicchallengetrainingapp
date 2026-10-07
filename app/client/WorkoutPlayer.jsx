@@ -6,7 +6,6 @@ import { useAuth } from "../auth/AuthProvider";
 import {
   completeSession,
   getActiveProgramFor,
-  deleteSetLog,
   findSession,
   getCoachProfile,
   getLastPerformance,
@@ -16,10 +15,9 @@ import {
   getWorkout,
   listSessions,
   upsertBlockLog,
-  upsertSetLog,
 } from "../lib/api";
 import { formatDateTime, programDayDate, todayISO } from "../lib/dates";
-import { blockSummary, firstName, formatClock, formatDistance, formatLabel, isSetBased, numOrNull, parseDuration, prescription, setItemProps } from "../lib/format";
+import { blockSummary, estimateWorkoutSec, exerciseMeta, firstName, formatClock, formatDistance, formatEstimate, formatLabel, isSetBased, numOrNull, parseDuration, prescription, setItemProps } from "../lib/format";
 import { POINTS, XP_PER_WORKOUT, levelFor, sessionsByDay, totalXp, workoutStreak } from "../lib/gamify";
 import { companionLine, MOODS } from "../lib/companion";
 import { go, unlockAudio, vibrate } from "../lib/sound";
@@ -27,6 +25,8 @@ import Companion from "../components/Companion";
 import { ErrorBox, Modal, PageLoader, ProgressBar, useAsync } from "../components/ui";
 import { FEELINGS } from "../components/SessionDetail";
 import BlockTimer from "./BlockTimer";
+import { queueSetLog, queueSetLogDelete } from "../lib/saveQueue";
+import SavingNote from "../components/SavingNote";
 import { VideoModal } from "../components/VideoEmbed";
 
 // Opens the exercise's demo video (the coach's own clip) right in the app.
@@ -120,7 +120,7 @@ function SetRow({ n, tag, tracking, logged, defaults, onToggle, onUpdate }) {
       {tracking === "weight_time" && (
         <>
           <input className="input" inputMode="decimal" placeholder={ph(defaults.load)} value={load} onChange={(e) => setLoad(e.target.value)} onBlur={blur} />
-          {timeInput(time, setTime, defaults.duration, "0:30")}
+          {timeInput(time, setTime, defaults.duration, "–")}
         </>
       )}
       {tracking === "reps" && <input className="input" inputMode="numeric" placeholder={ph(defaults.reps)} value={reps} onChange={(e) => setReps(e.target.value)} onBlur={blur} />}
@@ -129,8 +129,8 @@ function SetRow({ n, tag, tracking, logged, defaults, onToggle, onUpdate }) {
       )}
       {hasRest(tracking) && (
         <>
-          {timeInput(time, setTime, defaults.duration, "0:20")}
-          {timeInput(rest, setRestText, defaults.rest, "0:10")}
+          {timeInput(time, setTime, defaults.duration, "–")}
+          {timeInput(rest, setRestText, defaults.rest, formatClock(DEFAULT_REST))}
         </>
       )}
       <button className={`check${done ? " on" : ""}`} onClick={() => onToggle(values())} aria-label={done ? "Undo set" : "Complete set"}>
@@ -230,6 +230,7 @@ export function ExerciseHeader({ item, label, restSec, nextLabel, badge }) {
             <span className="h3">{ex.name}</span>
             {badge}
           </div>
+          {exerciseMeta(ex) && <div className="tiny muted mt-4">{exerciseMeta(ex)}</div>}
           <div className="small yellow mt-4">{prescription(restSec === undefined ? item : { ...item, rest_sec: restSec }, "sets", tracking)}</div>
           {nextLabel && <div className="tiny muted mt-4">Then straight into {nextLabel}, no rest</div>}
         </div>
@@ -397,20 +398,31 @@ export function BlockResult({ block, logged, prefill, onSave }) {
 // ---------- Rest timer bar ----------
 
 // What to count down after a set is ticked: timed exercises first count the
-// work, then rest. Rest = what's typed on the set, else the plan, else
-// DEFAULT_REST. restSec 0 means "no rest" (straight into the next superset
-// exercise).
+// work (left side, then right for one-sided ones), then rest. Rest = what's
+// typed on the set, else the plan, else DEFAULT_REST. restSec 0 means "no
+// rest" (straight into the next superset exercise).
 const DEFAULT_REST = 60;
+const SWITCH_SIDES_SEC = 5;
 const TIMED = new Set(["time", "weight_time", "distance_time"]);
+
+const startStep = (steps) => (steps.length ? { steps, endsAt: Date.now() + steps[0].sec * 1000 } : null);
+
 export function timerAfterSet(item, values, restSec) {
   const rest = values.rest_sec ?? (restSec === 0 ? 0 : restSec || DEFAULT_REST);
-  const work = TIMED.has(item.exercise?.tracking) && values.duration_sec && values.duration_sec <= 600 ? values.duration_sec : 0;
-  if (work) return { phase: "work", endsAt: Date.now() + work * 1000, restAfter: rest };
-  return rest ? { phase: "rest", endsAt: Date.now() + rest * 1000 } : null;
+  const ex = item.exercise ?? {};
+  const work = TIMED.has(ex.tracking) && values.duration_sec && values.duration_sec <= 600 ? values.duration_sec : 0;
+  const steps = [];
+  if (work && ex.unilateral) {
+    steps.push({ kind: "work", label: "LEFT SIDE", sec: work }, { kind: "switch", label: "SWITCH SIDES", sec: SWITCH_SIDES_SEC }, { kind: "work", label: "RIGHT SIDE", sec: work });
+  } else if (work) {
+    steps.push({ kind: "work", label: "WORK", sec: work });
+  }
+  if (rest) steps.push({ kind: "rest", label: "REST", sec: rest });
+  return startStep(steps);
 }
 
-// After work comes rest; after rest, nothing.
-export const nextTimer = (t) => (t?.phase === "work" && t.restAfter ? { phase: "rest", endsAt: Date.now() + t.restAfter * 1000 } : null);
+// Move on to the next step (or close the bar after the last one).
+export const nextTimer = (t) => (t ? startStep(t.steps.slice(1)) : null);
 
 export function RestBar({ rest, onDone, onAdd }) {
   const [now, setNow] = useState(Date.now());
@@ -421,23 +433,24 @@ export function RestBar({ rest, onDone, onAdd }) {
     return () => clearInterval(id);
   }, [rest.endsAt]);
   const left = Math.max(0, (rest.endsAt - now) / 1000);
-  const work = rest.phase === "work";
+  const step = rest.steps[0];
+  const last = rest.steps.length === 1;
   useEffect(() => {
     if (left <= 0 && !fired.current) {
       fired.current = true;
       go();
       vibrate();
-      const t = setTimeout(onDone, work ? 300 : 1200);
+      const t = setTimeout(onDone, last ? 1200 : 300);
       return () => clearTimeout(t);
     }
-  }, [left, onDone, work]);
+  }, [left, onDone, last]);
 
   return (
-    <div className={`rest-bar${work ? " work" : ""}`}>
+    <div className={`rest-bar ${step.kind}`}>
       <div className="rest-bar-inner">
         <Timer size={20} />
         <div className="grow">
-          <div className="tiny" style={{ fontWeight: 700, opacity: 0.7 }}>{work ? (left > 0 ? "WORK" : rest.restAfter ? "REST!" : "DONE!") : left > 0 ? "REST" : "GO!"}</div>
+          <div className="tiny" style={{ fontWeight: 700, opacity: 0.7 }}>{left > 0 ? step.label : last ? (step.kind === "rest" ? "GO!" : "DONE!") : rest.steps[1].label}</div>
           <div className="display" style={{ fontSize: 30 }}>{formatClock(Math.ceil(left))}</div>
         </div>
         <button className="btn btn-sm btn-dark" onClick={onAdd}>+15s</button>
@@ -679,41 +692,47 @@ export default function WorkoutPlayer() {
     }
   }
 
+  // Sets save through the queue (lib/saveQueue): the screen updates straight
+  // away and writes retry until they land, so bad signal never wipes a set.
+  const putSet = (item, n, row) =>
+    setSets((prev) => {
+      const copy = { ...(prev[item.id] ?? {}) };
+      if (row) copy[n] = row;
+      else delete copy[n];
+      return { ...prev, [item.id]: copy };
+    });
+
   async function toggleSet(item, n, values, restSec = item.rest_sec) {
     unlockAudio();
     setActionError(null);
     const existing = sets[item.id]?.[n];
-    try {
-      if (existing) {
-        setSets((s) => {
-          const copy = { ...(s[item.id] ?? {}) };
-          delete copy[n];
-          return { ...s, [item.id]: copy };
-        });
-        await deleteSetLog(existing.session_id, item.id, n);
-      } else {
-        const s = await ensureSession();
-        const row = { session_id: s.id, block_exercise_id: item.id, exercise_id: item.exercise_id, set_number: n, done: true, ...values };
-        setSets((prev) => ({ ...prev, [item.id]: { ...(prev[item.id] ?? {}), [n]: { ...row, id: "pending" } } }));
-        setRest(timerAfterSet(item, values, restSec));
-        const saved = await upsertSetLog(row);
-        setSets((prev) => ({ ...prev, [item.id]: { ...(prev[item.id] ?? {}), [n]: saved } }));
-      }
-    } catch (e) {
-      setActionError(e);
-      reload();
+    if (existing) {
+      putSet(item, n, null);
+      queueSetLogDelete("set_logs", existing.session_id, item.id, n, { onError: setActionError });
+      return;
     }
+    const draft = { block_exercise_id: item.id, exercise_id: item.exercise_id, set_number: n, done: true, ...values };
+    putSet(item, n, { ...draft, id: "pending" });
+    setRest(timerAfterSet(item, values, restSec));
+    let s;
+    try {
+      s = await ensureSession(); // the first set of a workout needs the network once
+    } catch (e) {
+      putSet(item, n, null);
+      setActionError(e);
+      return;
+    }
+    const row = { ...draft, session_id: s.id };
+    putSet(item, n, { ...row, id: "pending" });
+    queueSetLog("set_logs", row, { onSaved: (saved) => putSet(item, n, saved), onError: setActionError });
   }
 
-  async function updateSet(item, n, values) {
+  function updateSet(item, n, values) {
     const existing = sets[item.id]?.[n];
-    if (!existing || existing.id === "pending") return;
-    try {
-      const saved = await upsertSetLog({ ...existing, ...values, id: undefined, created_at: undefined });
-      setSets((prev) => ({ ...prev, [item.id]: { ...(prev[item.id] ?? {}), [n]: saved } }));
-    } catch (e) {
-      setActionError(e);
-    }
+    if (!existing?.session_id) return;
+    const row = { ...existing, ...values };
+    putSet(item, n, row);
+    queueSetLog("set_logs", row, { onSaved: (saved) => putSet(item, n, saved), onError: setActionError });
   }
 
   async function saveBlock(block, values) {
@@ -789,12 +808,18 @@ export default function WorkoutPlayer() {
             {workout.description || companionLine("workoutToday", { name: firstName(profile.full_name), workout: workout.title })}
           </Companion>
         )}
+        {!session && estimateWorkoutSec(workout.blocks) > 0 && (
+          <div className="small muted row gap-6">
+            <Timer size={15} /> Takes {formatEstimate(estimateWorkoutSec(workout.blocks)).replace("≈ ", "about ")}
+          </div>
+        )}
         {session && workout.description && <div className="card card-tight small muted">{workout.description}</div>}
         {completed && (
           <div className="ok-box row gap-6">
             <Check size={16} /> Completed {formatDateTime(session.completed_at)}. You can still edit your logs.
           </div>
         )}
+        <SavingNote />
         <ErrorBox error={actionError} />
 
         {workout.blocks.map((block, bi) => (
