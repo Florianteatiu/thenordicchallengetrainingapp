@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ChevronRight, Plus, Search } from "lucide-react";
-import { listPtClients, savePtClient } from "../lib/api";
+import { listClients, listPtClients, savePtClient } from "../lib/api";
 import { daysBetween, todayISO } from "../lib/dates";
 import { Avatar, ErrorBox, Modal, PageLoader, useAsync } from "../components/ui";
 
@@ -14,8 +14,12 @@ function sinceText(iso) {
   return `Last trained ${d} days ago`;
 }
 
-function AddClientModal({ onClose, onCreated }) {
+function AddClientModal({ existing, onClose, onCreated }) {
   const [form, setForm] = useState({ full_name: "", goals: "", injuries: "", phone: "" });
+  // Online clients (they have their own login) who aren't in Nordic PT yet.
+  const online = useAsync(listClients, []);
+  const taken = new Set(existing.map((c) => c.full_name.trim().toLowerCase()));
+  const candidates = (online.data ?? []).filter((c) => !c.archived && c.full_name && !taken.has(c.full_name.trim().toLowerCase()));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -44,6 +48,23 @@ function AddClientModal({ onClose, onCreated }) {
       }
     >
       <div className="col gap-12">
+        {candidates.length > 0 && (
+          <div className="field">
+            <span>Also train an online client in person? Tap to fill in</span>
+            <div className="chips">
+              {candidates.map((c) => (
+                <button
+                  type="button"
+                  key={c.id}
+                  className={`chip${form.full_name === c.full_name ? " active" : ""}`}
+                  onClick={() => setForm((f) => ({ ...f, full_name: c.full_name, goals: c.goals ?? f.goals, injuries: c.injuries ?? f.injuries }))}
+                >
+                  {c.full_name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <label className="field">
           <span>Name</span>
           <input className="input" autoFocus value={form.full_name} onChange={set("full_name")} placeholder="First and last name" />
@@ -134,7 +155,7 @@ export default function PtClientsPage() {
         </button>
       )}
 
-      {adding && <AddClientModal onClose={() => setAdding(false)} onCreated={(c) => navigate(`/pt/clients/${c.id}`)} />}
+      {adding && <AddClientModal existing={data ?? []} onClose={() => setAdding(false)} onCreated={(c) => navigate(`/pt/clients/${c.id}`)} />}
     </div>
   );
 }

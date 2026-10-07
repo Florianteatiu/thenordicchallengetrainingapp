@@ -263,11 +263,11 @@ export default function WorkoutBuilderPage() {
   return (
     <div style={{ maxWidth: 860 }}>
       <Link to={back} onClick={goBack} className="row small muted mb-12" style={{ gap: 4 }}>
-        <ArrowLeft size={15} /> {back.startsWith("/coach/programs") ? "Back to program" : back.startsWith("/pt/sessions") ? "Back to session" : "Workout templates"}
+        <ArrowLeft size={15} /> {back.startsWith("/coach/programs") ? "Back to program" : back.startsWith("/pt/sessions") || back.startsWith("/pt/group-sessions") ? "Back to session" : "Workout templates"}
       </Link>
 
       <div className="row wrap gap-6 mb-8">
-        {draft.is_template ? <span className="pill pill-blue">Workout template</span> : <span className="pill">{back.startsWith("/pt/sessions") ? "In a session" : "In a program"}</span>}
+        {draft.is_template ? <span className="pill pill-blue">Workout template</span> : <span className="pill">{back.startsWith("/pt/sessions") || back.startsWith("/pt/group-sessions") ? "In a session" : "In a program"}</span>}
       </div>
       <input
         className="input input-bare h1"

@@ -85,6 +85,7 @@ export default function PtSessionPage() {
   const { session, workout, last, exercises } = data;
   const clientLink = `/pt/clients/${session.client_id}`;
   const completed = Boolean(session.completed_at);
+  const isPlannedAhead = !completed && session.session_date > todayISO();
 
   let planned = 0;
   let doneCount = 0;
@@ -213,6 +214,12 @@ export default function PtSessionPage() {
             <Check size={16} /> Session finished. You can still change anything.
           </div>
         )}
+        {isPlannedAhead && (
+          <div className="card card-tight small">
+            <b className="yellow">Planned for {formatDate(session.session_date, { weekday: "long", day: "numeric", month: "short" })}.</b> Changes save as you go. On the day,
+            open it from the client's sessions and train; weights fill in from last time.
+          </div>
+        )}
         <SavingNote />
         <ErrorBox error={actionError} />
 
@@ -321,7 +328,11 @@ export default function PtSessionPage() {
           </div>
         </div>
 
-        {!completed ? (
+        {isPlannedAhead ? (
+          <Link to={clientLink} className="btn btn-primary btn-lg btn-block">
+            <Check size={20} /> Save plan
+          </Link>
+        ) : !completed ? (
           <button
             className="btn btn-primary btn-lg btn-block"
             onClick={async () => {
