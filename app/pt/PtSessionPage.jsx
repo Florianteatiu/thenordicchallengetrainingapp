@@ -13,7 +13,7 @@ import {
   upsertPtBlockLog,
 } from "../lib/api";
 import { formatDate, todayISO } from "../lib/dates";
-import { blockSummary, formatLabel, isSetBased, prescription, setItemProps } from "../lib/format";
+import { blockSummary, estimateWorkoutSec, formatEstimate, formatLabel, isSetBased, prescription, setItemProps } from "../lib/format";
 import { unlockAudio } from "../lib/sound";
 import { CommitInput, ErrorBox, PageLoader, ProgressBar, useAsync } from "../components/ui";
 import ExercisePicker from "../components/ExercisePicker";
@@ -204,6 +204,9 @@ export default function PtSessionPage() {
           </div>
         </div>
 
+        {estimateWorkoutSec(workout.blocks) > 0 && (
+          <div className="small muted">Estimated time {formatEstimate(estimateWorkoutSec(workout.blocks))}</div>
+        )}
         {workout.description && <div className="card card-tight small muted pre">{workout.description}</div>}
         {completed && (
           <div className="ok-box row gap-6">

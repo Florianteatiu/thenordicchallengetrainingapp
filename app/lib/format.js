@@ -108,6 +108,7 @@ export function prescription(item, format, tracking) {
   if (isSetBased(format) && item.sets) volume.push(hasAmount ? `${item.sets} ×` : `${item.sets} sets`);
   if (item.reps) volume.push(item.reps);
   if (item.duration_sec) volume.push(formatDuration(item.duration_sec));
+  if (item.exercise?.unilateral && (item.reps || item.duration_sec)) volume.push("each side");
   if (item.distance_m) volume.push(formatDistance(item.distance_m));
   if (volume.length) parts.push(volume.join(" "));
   if (item.load) parts.push(item.load);
@@ -169,4 +170,108 @@ export function formatActivityDuration(sec) {
 export function formatKm(km) {
   const n = Number(km) || 0;
   return n >= 100 ? String(Math.round(n)) : String(+n.toFixed(1));
+}
+
+// ---------- Estimated workout time ----------
+// Tuned on Florian's 1-to-1 sessions (about 19 sets of strength work ≈ 50 min):
+// ~4 s per rep (10 reps if blank), the planned rest or 60 s, and 2 min to set
+// up each exercise. One-sided exercises count both sides.
+const SETUP_SEC = 120;
+const REP_SEC = 4;
+const REST_SEC = 60;
+const SIDE_SWITCH_SEC = 10;
+const leadingNumber = (text) => {
+  const m = String(text ?? "").match(/\d+/);
+  return m ? Number(m[0]) : null;
+};
+
+function itemWorkSec(it) {
+  const t = it.exercise?.tracking;
+  let work;
+  if (it.duration_sec) work = it.duration_sec;
+  else if (it.distance_m) work = it.distance_m * 0.3; // ~5 min per km
+  else if (t === "time" || t === "weight_time" || t === "distance_time") work = 30;
+  else work = (leadingNumber(it.reps) ?? 10) * REP_SEC;
+  return it.exercise?.unilateral ? work * 2 + SIDE_SWITCH_SEC : work;
+}
+
+export function estimateWorkoutSec(blocks) {
+  let total = 0;
+  for (const b of blocks ?? []) {
+    const items = b.items ?? [];
+    const work = items.reduce((s, it) => s + itemWorkSec(it), 0);
+    switch (b.format) {
+      case "sets":
+        for (const it of items) total += SETUP_SEC + (it.sets || 3) * (itemWorkSec(it) + (it.rest_sec ?? REST_SEC));
+        break;
+      case "superset": {
+        if (!items.length) break;
+        const rounds = Math.max(...items.map((it) => it.sets || 3));
+        const rest = Math.max(0, ...items.map((it) => it.rest_sec || 0)) || REST_SEC;
+        total += SETUP_SEC + (items.length - 1) * 30 + rounds * (work + rest);
+        break;
+      }
+      case "circuit": {
+        if (!items.length) break;
+        const rounds = b.rounds || 3;
+        total += SETUP_SEC + rounds * (work + items.length * 15) + (rounds - 1) * (b.rest_sec ?? REST_SEC);
+        break;
+      }
+      case "intervals":
+        total += SETUP_SEC + (b.rounds || 8) * ((b.work_sec || 40) + (b.rest_sec || 0));
+        break;
+      case "amrap":
+        total += SETUP_SEC + (b.time_cap_sec || 600);
+        break;
+      case "emom":
+        total += SETUP_SEC + (b.rounds || 10) * 60;
+        break;
+      default:
+        break;
+    }
+  }
+  return total;
+}
+
+// 2950 -> "≈ 50 min", 4500 -> "≈ 1 h 15 min" (rounded to 5 min)
+export function formatEstimate(sec) {
+  if (!sec) return "";
+  const min = Math.max(5, Math.round(sec / 300) * 5);
+  if (min < 60) return `≈ ${min} min`;
+  const h = Math.floor(min / 60);
+  return `≈ ${h} h${min % 60 ? ` ${min % 60} min` : ""}`;
+}
+
+// ---------- Equipment ----------
+export const EQUIPMENT = [
+  "Barbell",
+  "Dumbbell",
+  "Kettlebell",
+  "Cable",
+  "Machine",
+  "Smith machine",
+  "Landmine",
+  "Plate",
+  "Medicine ball",
+  "Slam ball",
+  "Sandbag",
+  "Band",
+  "Physio ball",
+  "TRX",
+  "Sled",
+  "Box / bench",
+  "Rower",
+  "Ski erg",
+  "Bike",
+  "Treadmill",
+  "Bodyweight",
+  "Other",
+];
+
+// "Dumbbell · each side" under an exercise name (equipment skipped when the
+// name already says it, e.g. "Smith machine row").
+export function exerciseMeta(ex) {
+  if (!ex) return "";
+  const eq = ex.equipment && !ex.name?.toLowerCase().includes(ex.equipment.toLowerCase()) ? ex.equipment : null;
+  return [eq, ex.unilateral && "each side"].filter(Boolean).join(" · ");
 }

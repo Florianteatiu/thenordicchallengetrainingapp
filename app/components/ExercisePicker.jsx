@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import { saveExercise } from "../lib/api";
-import { CATEGORIES, TRACKING, categoryLabel, regionLabel } from "../lib/format";
+import { CATEGORIES, TRACKING, categoryLabel, exerciseMeta, regionLabel } from "../lib/format";
 import RegionChips, { matchesFilter } from "./RegionChips";
 import { ErrorBox, Modal } from "./ui";
 
@@ -116,7 +116,10 @@ export default function ExercisePicker({ exercises, onPick, onCreated, onClose }
       <div className="list">
         {filtered.map((e) => (
           <button key={e.id} className="card card-tight card-link row between" style={{ textAlign: "left", cursor: "pointer" }} onClick={() => onPick(e)}>
-            <span style={{ fontWeight: 600 }}>{e.name}</span>
+            <span>
+              <span style={{ fontWeight: 600 }}>{e.name}</span>
+              {exerciseMeta(e) && <span className="tiny muted"> · {exerciseMeta(e)}</span>}
+            </span>
             <span className="pill">{e.body_region ? regionLabel(e.body_region) : categoryLabel(e.category)}</span>
           </button>
         ))}

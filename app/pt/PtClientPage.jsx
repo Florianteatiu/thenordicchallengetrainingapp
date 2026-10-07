@@ -15,6 +15,7 @@ import {
   updatePtNote,
 } from "../lib/api";
 import { formatDate, formatDateTime, todayISO } from "../lib/dates";
+import { formatEstimate } from "../lib/format";
 import { Avatar, CommitInput, ErrorBox, Modal, PageLoader, Spinner, useAsync } from "../components/ui";
 import LiftProgress from "../components/LiftProgress";
 
@@ -70,7 +71,7 @@ function StartSessionModal({ client, lastSession, onClose }) {
         {templates.loading && <Spinner />}
         {templates.data?.length === 0 && <div className="small faint">No templates yet. Make them in the Workouts tab.</div>}
         {(templates.data ?? []).map((t) =>
-          option(t.id, <Dumbbell size={20} className="faint" />, t.title, `${t.exerciseCount} exercise${t.exerciseCount === 1 ? "" : "s"}`, () => start(t.id)),
+          option(t.id, <Dumbbell size={20} className="faint" />, t.title, `${t.exerciseCount} exercise${t.exerciseCount === 1 ? "" : "s"}${t.estimateSec ? ` · ${formatEstimate(t.estimateSec)}` : ""}`, () => start(t.id)),
         )}
       </div>
     </Modal>
