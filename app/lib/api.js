@@ -540,7 +540,7 @@ export async function listWeightedSets(clientId) {
   return check(
     await supabase
       .from("set_logs")
-      .select("exercise_id, reps, load_kg, created_at, session_id, exercise:exercises(name), session:workout_sessions!inner(client_id)")
+      .select("exercise_id, reps, load_kg, created_at, session_id, exercise:exercises(name, equipment), session:workout_sessions!inner(client_id)")
       .eq("session.client_id", clientId)
       .not("load_kg", "is", null)
       .gt("load_kg", 0)
@@ -670,7 +670,7 @@ export async function listPtWeightedSets(clientId) {
   const rows = check(
     await supabase
       .from("pt_set_logs")
-      .select("exercise_id, reps, load_kg, session_id, exercise:exercises(name), session:pt_sessions!inner(client_id, session_date)")
+      .select("exercise_id, reps, load_kg, session_id, exercise:exercises(name, equipment), session:pt_sessions!inner(client_id, session_date)")
       .eq("session.client_id", clientId)
       .not("load_kg", "is", null)
       .gt("load_kg", 0)
