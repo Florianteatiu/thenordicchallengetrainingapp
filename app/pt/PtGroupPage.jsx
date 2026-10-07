@@ -69,7 +69,7 @@ function StartModal({ group, onClose }) {
   const toggleB = (id) => setOnB((b) => (b.includes(id) ? b.filter((x) => x !== id) : [...b, id]));
 
   async function start() {
-    if (!present.length) return setError("Tick at least one person who's here.");
+    if (!present.length) return setError("Tick at least one person.");
     const b = twoWorkouts ? present.filter((id) => onB.includes(id)) : [];
     const a = present.filter((id) => !b.includes(id));
     if (twoWorkouts && (!a.length || !b.length)) return setError("With two workouts, put at least one person on each (tap B next to their name).");
@@ -93,14 +93,17 @@ function StartModal({ group, onClose }) {
       onClose={onClose}
       footer={
         <button className="btn btn-primary btn-lg" onClick={start} disabled={busy}>
-          <Play size={17} fill="currentColor" /> {busy ? "Starting…" : "Start session"}
+          <Play size={17} fill="currentColor" /> {busy ? "Saving…" : date > todayISO() ? "Plan session" : "Start session"}
         </button>
       }
     >
       <div className="col gap-16">
         <label className="field">
           <span>Date</span>
-          <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value || todayISO())} />
+          <span className="tiny faint" style={{ fontWeight: 400 }}>
+            {date > todayISO() ? "Planning ahead: the session is saved for that day, ready to open when you train." : "Pick a later day to plan a session ahead."}
+          </span>
         </label>
 
         <label className="field">
@@ -119,7 +122,7 @@ function StartModal({ group, onClose }) {
         )}
 
         <div className="field">
-          <span>Who's here?{twoWorkouts ? " Tap A / B for each person." : ""}</span>
+          <span>{date > todayISO() ? "Who's coming?" : "Who's here?"}{twoWorkouts ? " Tap A / B for each person." : ""}</span>
           <div className="list">
             {group.members.map((m) => {
               const here = present.includes(m.id);
@@ -236,7 +239,7 @@ export default function PtGroupPage() {
                       {s.sessions.length} {s.sessions.length === 1 ? "person" : "people"} · {s.sessions.map((p) => (nameOf[p.client_id] ?? "").split(" ")[0]).filter(Boolean).join(", ")}
                     </div>
                   </div>
-                  {!s.completed_at && <span className="pill">Open</span>}
+                  {!s.completed_at && (s.session_date > todayISO() ? <span className="pill pill-yellow">Planned</span> : <span className="pill">Open</span>)}
                 </Link>
               );
             })}
