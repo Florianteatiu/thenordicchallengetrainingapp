@@ -17,6 +17,7 @@ const callbacks = new Map(); // key -> { onSaved, onError } (this page load only
 const listeners = new Set();
 let running = false;
 let timer = null;
+let failing = false; // the last attempt couldn't reach the server
 
 function load() {
   try {
@@ -26,13 +27,19 @@ function load() {
   }
 }
 
+function setFailing(v) {
+  if (failing === v) return;
+  failing = v;
+  changed();
+}
+
 function changed() {
   try {
     localStorage.setItem(STORE, JSON.stringify(jobs));
   } catch {
     // storage unavailable (private mode): the queue still works in memory
   }
-  listeners.forEach((l) => l(jobs.length));
+  listeners.forEach((l) => l(failing ? jobs.length : 0));
 }
 
 async function run(job) {
@@ -59,9 +66,11 @@ async function flush() {
       }
       const cb = callbacks.get(job.key);
       if (result.error && isNetwork(result.error)) {
+        setFailing(true);
         timer = setTimeout(flush, RETRY_MS);
         return;
       }
+      setFailing(false);
       // Done (or refused): drop it, unless a newer write replaced it meanwhile.
       if (jobs[0] === job) {
         jobs = jobs.slice(1);
@@ -88,12 +97,14 @@ export function enqueueSave(job, { onSaved, onError } = {}) {
   flush();
 }
 
-// Number of writes still waiting, for a "Saving…" note.
+// Number of writes waiting because the network is down, for a "Saving…" note.
+// Normal saves (a fraction of a second) don't count, so the note never pops
+// in and shifts the page while someone is tapping.
 export function usePendingSaves() {
-  const [count, setCount] = useState(jobs.length);
+  const [count, setCount] = useState(failing ? jobs.length : 0);
   useEffect(() => {
     listeners.add(setCount);
-    setCount(jobs.length);
+    setCount(failing ? jobs.length : 0);
     return () => listeners.delete(setCount);
   }, []);
   return count;

@@ -17,9 +17,9 @@ import { blockSummary, estimateWorkoutSec, formatEstimate, formatLabel, isSetBas
 import { unlockAudio } from "../lib/sound";
 import { CommitInput, ErrorBox, PageLoader, ProgressBar, useAsync } from "../components/ui";
 import ExercisePicker from "../components/ExercisePicker";
-import { queueSetLog, queueSetLogDelete } from "../lib/saveQueue";
+import { queueSetLog } from "../lib/saveQueue";
 import SavingNote from "../components/SavingNote";
-import { BlockResult, ExerciseSets, RestBar, SupersetRounds, nextTimer, timerAfterSet } from "../client/WorkoutPlayer";
+import { BlockResult, ExerciseSets, RestBar, SupersetRounds, isDone, nextTimer, timerAfterSet } from "../client/WorkoutPlayer";
 import BlockTimer from "../client/BlockTimer";
 
 // One in-person session: Florian logs the client's sets on his phone as they
@@ -68,7 +68,7 @@ export default function PtSessionPage() {
     for (const block of data.workout.blocks)
       for (const item of block.items) {
         const best = data.last[item.exercise_id]?.bestKg ?? 0;
-        if (best > 0 && Object.values(sets[item.id] ?? {}).some((r) => (r.load_kg ?? 0) > best)) out.add(item.exercise_id);
+        if (best > 0 && Object.values(sets[item.id] ?? {}).some((r) => isDone(r) && (r.load_kg ?? 0) > best)) out.add(item.exercise_id);
       }
     return out;
   }, [sets, data]);
@@ -93,7 +93,7 @@ export default function PtSessionPage() {
     if (isSetBased(b.format)) {
       for (const it of b.items) {
         planned += it.sets || 1;
-        doneCount += Math.min(it.sets || 1, Object.keys(sets[it.id] ?? {}).length);
+        doneCount += Math.min(it.sets || 1, Object.values(sets[it.id] ?? {}).filter(isDone).length);
       }
     } else {
       planned += 1;
@@ -121,17 +121,36 @@ export default function PtSessionPage() {
       return { ...prev, [item.id]: copy };
     });
 
+  // Un-ticking keeps the numbers (as not done) instead of throwing them away.
   function toggleSet(item, n, values, restSec = item.rest_sec) {
     unlockAudio();
     setActionError(null);
-    if (sets[item.id]?.[n]) {
-      putSet(item, n, null);
-      queueSetLogDelete("pt_set_logs", id, item.id, n, { onError: setActionError });
-    } else {
-      const row = { session_id: id, block_exercise_id: item.id, exercise_id: item.exercise_id, set_number: n, done: true, ...values };
-      putSet(item, n, { ...row, id: "pending" });
-      setRest(timerAfterSet(item, values, restSec));
-      queueSetLog("pt_set_logs", row, { onSaved: (saved) => putSet(item, n, saved), onError: setActionError });
+    const existing = sets[item.id]?.[n];
+    const done = !isDone(existing);
+    const row = { ...existing, session_id: id, block_exercise_id: item.id, exercise_id: item.exercise_id, set_number: n, ...values, done };
+    putSet(item, n, { ...row, id: done ? "pending" : existing.id });
+    if (done) setRest(timerAfterSet(item, values, restSec));
+    queueSetLog("pt_set_logs", row, { onSaved: (saved) => putSet(item, n, saved), onError: setActionError });
+  }
+
+  // Numbers typed without ticking (or planned ahead) are saved as not done.
+  function draftSet(item, n, values) {
+    const existing = sets[item.id]?.[n];
+    if (isDone(existing)) return;
+    const row = { ...existing, session_id: id, block_exercise_id: item.id, exercise_id: item.exercise_id, set_number: n, ...values, done: false };
+    putSet(item, n, { ...row, id: existing?.id ?? "draft" });
+    // The row keeps its local id while it's a draft (no re-render mid-typing).
+    queueSetLog("pt_set_logs", row, { onError: setActionError });
+  }
+
+  // Finishing with filled-in but un-ticked sets: offer to count them.
+  function finishDrafts() {
+    const drafts = Object.entries(sets).flatMap(([itemId, byN]) => Object.entries(byN).filter(([, r]) => r.done === false).map(([n, r]) => [itemId, Number(n), r]));
+    if (!drafts.length || !window.confirm(`${drafts.length} set${drafts.length === 1 ? " is" : "s are"} filled in but not ticked. Count ${drafts.length === 1 ? "it" : "them"} as done?`)) return;
+    for (const [itemId, n, r] of drafts) {
+      const row = { ...r, done: true };
+      setSets((prev) => ({ ...prev, [itemId]: { ...(prev[itemId] ?? {}), [n]: row } }));
+      queueSetLog("pt_set_logs", row, { onError: setActionError });
     }
   }
 
@@ -251,6 +270,7 @@ export default function PtSessionPage() {
                 onAddRound={() => setExtraSets((x) => ({ ...x, [block.id]: (x[block.id] ?? 0) + 1 }))}
                 onToggle={toggleSet}
                 onUpdate={updateSet}
+                onDraft={draftSet}
               />
             ) : isSetBased(block.format) ? (
               block.items.map((item, ii) => (
@@ -265,6 +285,7 @@ export default function PtSessionPage() {
                   onAddSet={() => setExtraSets((x) => ({ ...x, [item.id]: (x[item.id] ?? 0) + 1 }))}
                   onToggle={toggleSet}
                   onUpdate={updateSet}
+                  onDraft={draftSet}
                 />
               ))
             ) : (
@@ -336,6 +357,7 @@ export default function PtSessionPage() {
           <button
             className="btn btn-primary btn-lg btn-block"
             onClick={async () => {
+              finishDrafts();
               await saveSession({ completed_at: new Date().toISOString() });
               navigate(clientLink);
             }}
