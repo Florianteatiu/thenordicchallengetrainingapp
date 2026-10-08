@@ -19,7 +19,7 @@ function AddClientModal({ existing, onClose, onCreated }) {
   // Online clients (they have their own login) who aren't in Nordic PT yet.
   const online = useAsync(listClients, []);
   const taken = new Set(existing.map((c) => c.full_name.trim().toLowerCase()));
-  const candidates = (online.data ?? []).filter((c) => !c.archived && c.full_name && !taken.has(c.full_name.trim().toLowerCase()));
+  const candidates = (online.data ?? []).filter((c) => !c.archived && c.approved_at && c.full_name && !taken.has(c.full_name.trim().toLowerCase()));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));

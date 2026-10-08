@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import { saveExercise } from "../lib/api";
-import { CATEGORIES, TRACKING, categoryLabel, exerciseMeta, regionLabel } from "../lib/format";
+import { CATEGORIES, EQUIPMENT, TRACKING, categoryLabel, exerciseMeta, regionLabel } from "../lib/format";
 import RegionChips, { matchesFilter } from "./RegionChips";
 import { ErrorBox, Modal } from "./ui";
 
@@ -15,6 +15,8 @@ export default function ExercisePicker({ exercises, onPick, onCreated, onClose }
   const [creating, setCreating] = useState(false);
   const [newCat, setNewCat] = useState("strength");
   const [newTracking, setNewTracking] = useState("weight_reps");
+  const [newEquipment, setNewEquipment] = useState("");
+  const [newUnilateral, setNewUnilateral] = useState(false);
   const [error, setError] = useState(null);
 
   const filtered = useMemo(
@@ -26,11 +28,11 @@ export default function ExercisePicker({ exercises, onPick, onCreated, onClose }
   async function create() {
     setError(null);
     try {
-      const ex = await saveExercise({ name: q.trim(), category: newCat, tracking: newTracking });
+      const ex = await saveExercise({ name: q.trim(), category: newCat, tracking: newTracking, equipment: newEquipment || null, unilateral: newUnilateral });
       onCreated?.(ex);
       onPick(ex);
     } catch (e) {
-      setError(e);
+      setError(e.code === "23505" ? `“${q.trim()}” with ${newEquipment || "no equipment"} already exists. Pick it from the list, or choose other equipment.` : e);
     }
   }
 
@@ -66,11 +68,11 @@ export default function ExercisePicker({ exercises, onPick, onCreated, onClose }
         </div>
       )}
 
-      {q.trim() && !exact && (
+      {q.trim() && (
         <div className="card card-tight mb-12">
           {!creating ? (
             <button className="link-btn row gap-6" onClick={() => setCreating(true)}>
-              <Plus size={16} /> Create “{q.trim()}”
+              <Plus size={16} /> {exact ? `Create “${q.trim()}” with other equipment` : `Create “${q.trim()}”`}
             </button>
           ) : (
             <div className="col">
@@ -103,6 +105,30 @@ export default function ExercisePicker({ exercises, onPick, onCreated, onClose }
                     ))}
                   </select>
                 </label>
+              </div>
+              <div className="grid-2">
+                <label className="field">
+                  <span>Equipment</span>
+                  <select className="select input-sm" value={newEquipment} onChange={(e) => setNewEquipment(e.target.value)}>
+                    <option value="">None / not set</option>
+                    {EQUIPMENT.map((x) => (
+                      <option key={x} value={x}>
+                        {x}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="field">
+                  <span>Sides</span>
+                  <div className="chips">
+                    <button type="button" className={`chip${!newUnilateral ? " active" : ""}`} onClick={() => setNewUnilateral(false)}>
+                      Both together
+                    </button>
+                    <button type="button" className={`chip${newUnilateral ? " active" : ""}`} onClick={() => setNewUnilateral(true)}>
+                      Each side
+                    </button>
+                  </div>
+                </div>
               </div>
               <button className="btn btn-primary btn-sm" onClick={create}>
                 Create and add

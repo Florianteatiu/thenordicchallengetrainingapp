@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, CalendarX, Check, ClipboardCheck, Copy, Flame, MessageCircle, MoonStar, PartyPopper } from "lucide-react";
-import { listActivePrograms, listClients, listRecentCheckinsAll, listRecentSessionsAll } from "../lib/api";
+import { approveClient, listActivePrograms, listClients, listRecentCheckinsAll, listRecentSessionsAll } from "../lib/api";
 import { useConversations } from "../lib/useUnread";
 import { addDays, daysBetween, formatDateTime, mondayOf, programDayDate, todayISO } from "../lib/dates";
 import { firstName } from "../lib/format";
@@ -65,7 +65,8 @@ export default function ClientsPage() {
   const [copied, setCopied] = useState(false);
   const today = todayISO();
 
-  const { data, loading, error, reload } = useAsync(async () => {
+  const [actionError, setActionError] = useState(null);
+  const { data, loading, error, reload, setData } = useAsync(async () => {
     const [clients, programs, sessions, checkins] = await Promise.all([
       listClients(),
       listActivePrograms(),
@@ -78,6 +79,7 @@ export default function ClientsPage() {
   const rows = useMemo(() => {
     if (!data) return [];
     return data.clients
+      .filter((c) => c.approved_at || c.archived)
       .filter((c) => showArchived || !c.archived)
       .map((c) => ({ client: c, ...summarize(c, data.programs.find((p) => p.client_id === c.id), data.sessions, today) }));
   }, [data, showArchived, today]);
@@ -96,6 +98,23 @@ export default function ClientsPage() {
     }),
     [rows],
   );
+
+  // New sign-ups waiting for approval (newest first).
+  const pending = useMemo(
+    () => (data?.clients ?? []).filter((c) => !c.approved_at && !c.archived).sort((a, b) => b.created_at.localeCompare(a.created_at)),
+    [data],
+  );
+
+  async function decide(client, approve) {
+    if (!approve && !window.confirm(`Decline ${client.full_name}? They won't be able to use the app. You can approve them later from archived clients.`)) return;
+    setActionError(null);
+    try {
+      const updated = await approveClient(client.id, approve);
+      setData((d) => ({ ...d, clients: d.clients.map((c) => (c.id === client.id ? { ...c, ...updated } : c)) }));
+    } catch (e) {
+      setActionError(e);
+    }
+  }
 
   function copyInvite() {
     navigator.clipboard?.writeText(window.location.origin);
@@ -118,6 +137,33 @@ export default function ClientsPage() {
       </div>
 
       <ErrorBox error={error} onRetry={reload} />
+      <ErrorBox error={actionError} />
+
+      {pending.length > 0 && (
+        <div className="card mb-16" style={{ borderColor: "var(--yellow)" }}>
+          <div className="eyebrow mb-8">
+            Waiting for your approval ({pending.length})
+          </div>
+          <div className="small muted mb-12">New sign-ups can't use the app until you approve them. Approve once they've paid.</div>
+          <div className="list">
+            {pending.map((c) => (
+              <div key={c.id} className="row gap-12 wrap">
+                <Avatar name={c.full_name} url={c.avatar_url} size={40} />
+                <div className="grow" style={{ minWidth: 140 }}>
+                  <div style={{ fontWeight: 700 }}>{c.full_name}</div>
+                  <div className="tiny faint">Signed up {new Date(c.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</div>
+                </div>
+                <button className="btn btn-primary btn-sm" onClick={() => decide(c, true)}>
+                  <Check size={15} /> Approve
+                </button>
+                <button className="btn btn-ghost btn-sm" onClick={() => decide(c, false)}>
+                  Decline
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="stats mb-16">
         <div className="stat">

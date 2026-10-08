@@ -20,6 +20,11 @@ export async function resetClientPassword(clientId, password) {
   check(await supabase.rpc("coach_reset_password", { p_client_id: clientId, p_password: password }));
 }
 
+// Coach lets a new sign-up in (true) or declines / pauses them (false).
+export async function approveClient(clientId, approve) {
+  return check(await supabase.rpc("approve_client", { p_client_id: clientId, p_approve: approve }));
+}
+
 // Client has chosen their own password after a coach reset.
 export async function markPasswordChanged() {
   check(await supabase.rpc("password_changed"));
