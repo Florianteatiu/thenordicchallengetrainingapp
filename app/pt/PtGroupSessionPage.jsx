@@ -18,9 +18,9 @@ import { blockSummary, estimateWorkoutSec, firstName, formatEstimate, formatLabe
 import { unlockAudio } from "../lib/sound";
 import { CommitInput, ErrorBox, Modal, PageLoader, ProgressBar, useAsync } from "../components/ui";
 import ExercisePicker from "../components/ExercisePicker";
-import { BlockResult, ExerciseHeader, RestBar, SetsGrid, VideoButton, lastTimeText, nextTimer, timerAfterSet } from "../client/WorkoutPlayer";
+import { BlockResult, ExerciseHeader, RestBar, SetsGrid, VideoButton, isDone, lastTimeText, nextTimer, timerAfterSet } from "../client/WorkoutPlayer";
 import BlockTimer from "../client/BlockTimer";
-import { queueSetLog, queueSetLogDelete } from "../lib/saveQueue";
+import { queueSetLog } from "../lib/saveQueue";
 import SavingNote from "../components/SavingNote";
 
 // Who's in the session (and on which workout); add or remove people.
@@ -159,7 +159,7 @@ export default function PtGroupSessionPage() {
       if (isSetBased(b.format))
         for (const it of b.items) {
           planned += it.sets || 1;
-          doneCount += Math.min(it.sets || 1, Object.keys(sets[p.id]?.[it.id] ?? {}).length);
+          doneCount += Math.min(it.sets || 1, Object.values(sets[p.id]?.[it.id] ?? {}).filter(isDone).length);
         }
       else {
         planned += 1;
@@ -179,18 +179,26 @@ export default function PtGroupSessionPage() {
       return { ...prev, [person.id]: mine };
     });
 
+  // Un-ticking keeps the numbers (as not done) instead of throwing them away.
   function toggleSet(person, item, n, values, restSec = item.rest_sec) {
     unlockAudio();
     setActionError(null);
-    if (sets[person.id]?.[item.id]?.[n]) {
-      putSet(person, item, n, null);
-      queueSetLogDelete("pt_set_logs", person.id, item.id, n, { onError: setActionError });
-    } else {
-      const row = { session_id: person.id, block_exercise_id: item.id, exercise_id: item.exercise_id, set_number: n, done: true, ...values };
-      putSet(person, item, n, { ...row, id: "pending" });
-      setRest(timerAfterSet(item, values, restSec));
-      queueSetLog("pt_set_logs", row, { onSaved: (saved) => putSet(person, item, n, saved), onError: setActionError });
-    }
+    const existing = sets[person.id]?.[item.id]?.[n];
+    const done = !isDone(existing);
+    const row = { ...existing, session_id: person.id, block_exercise_id: item.id, exercise_id: item.exercise_id, set_number: n, ...values, done };
+    putSet(person, item, n, { ...row, id: done ? "pending" : existing.id });
+    if (done) setRest(timerAfterSet(item, values, restSec));
+    queueSetLog("pt_set_logs", row, { onSaved: (saved) => putSet(person, item, n, saved), onError: setActionError });
+  }
+
+  // Numbers typed without ticking (or planned ahead) are saved as not done.
+  function draftSet(person, item, n, values) {
+    const existing = sets[person.id]?.[item.id]?.[n];
+    if (isDone(existing)) return;
+    const row = { ...existing, session_id: person.id, block_exercise_id: item.id, exercise_id: item.exercise_id, set_number: n, ...values, done: false };
+    putSet(person, item, n, { ...row, id: existing?.id ?? "draft" });
+    // The row keeps its local id while it's a draft (no re-render mid-typing).
+    queueSetLog("pt_set_logs", row, { onError: setActionError });
   }
 
   function updateSet(person, item, n, values) {
@@ -211,6 +219,16 @@ export default function PtGroupSessionPage() {
   }
 
   async function toggleDone() {
+    if (!done) {
+      const drafts = Object.values(sets).flatMap((byItem) => Object.values(byItem).flatMap((byN) => Object.values(byN))).filter((r) => r.done === false);
+      if (drafts.length && window.confirm(`${drafts.length} set${drafts.length === 1 ? " is" : "s are"} filled in but not ticked. Count ${drafts.length === 1 ? "it" : "them"} as done?`)) {
+        for (const r of drafts) {
+          const row = { ...r, done: true };
+          setSets((prev) => ({ ...prev, [r.session_id]: { ...prev[r.session_id], [r.block_exercise_id]: { ...prev[r.session_id]?.[r.block_exercise_id], [r.set_number]: row } } }));
+          queueSetLog("pt_set_logs", row, { onError: setActionError });
+        }
+      }
+    }
     try {
       const gs = await setPtGroupSessionDone(session.id, !done);
       setData((d) => ({ ...d, session: gs }));
@@ -337,6 +355,7 @@ export default function PtGroupSessionPage() {
                                 restSec={sp.restSec}
                                 onToggle={(it, n, v, r) => toggleSet(p, it, n, v, r)}
                                 onUpdate={(it, n, v) => updateSet(p, it, n, v)}
+                                onDraft={(it, n, v) => draftSet(p, it, n, v)}
                               />
                             </div>
                           );

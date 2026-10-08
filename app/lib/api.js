@@ -644,6 +644,7 @@ export async function getPtLastPerformance(clientId, exerciseIds, excludeSession
     await supabase
       .from("pt_set_logs")
       .select("exercise_id, set_number, reps, load_kg, duration_sec, distance_m, rest_sec, session_id, session:pt_sessions!inner(client_id, session_date, started_at)")
+      .eq("done", true)
       .in("exercise_id", exerciseIds)
       .eq("session.client_id", clientId)
       .neq("session_id", excludeSessionId)
@@ -671,6 +672,7 @@ export async function listPtWeightedSets(clientId) {
     await supabase
       .from("pt_set_logs")
       .select("exercise_id, reps, load_kg, session_id, exercise:exercises(name, equipment), session:pt_sessions!inner(client_id, session_date)")
+      .eq("done", true)
       .eq("session.client_id", clientId)
       .not("load_kg", "is", null)
       .gt("load_kg", 0)

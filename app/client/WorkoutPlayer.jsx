@@ -72,7 +72,18 @@ function parseClockTyped(text) {
 // Tabata is 8 sets of 0:20 work / 0:10 rest.
 const hasRest = (tracking) => tracking === "time" || tracking === "distance_time";
 
-function SetRow({ n, tag, tracking, logged, defaults, onToggle, onUpdate }) {
+// A logged row with done = false is a "draft": numbers typed (or planned)
+// but not ticked yet. They're saved so nothing typed is ever lost.
+const isDone = (row) => Boolean(row) && row.done !== false;
+// A new key whenever the row should re-read its numbers (ticked, or a saved
+// draft that arrives with the page), but the same key while a draft typed
+// here is being saved, so saving never steals focus from the next box.
+const rowKey = (n, row) => {
+  if (isDone(row)) return `${n}-${row.id}`;
+  return row?.id && row.id !== "draft" ? `${n}-open-${row.id}` : `${n}-open`;
+};
+
+function SetRow({ n, tag, tracking, logged, defaults, onToggle, onUpdate, onDraft }) {
   const init = (v) => (v == null ? "" : String(v));
   const clock = (v) => (v == null ? "" : formatClock(v));
   const [load, setLoad] = useState(init(logged?.load_kg));
@@ -80,7 +91,7 @@ function SetRow({ n, tag, tracking, logged, defaults, onToggle, onUpdate }) {
   const [time, setTime] = useState(clock(logged?.duration_sec));
   const [rest, setRestText] = useState(clock(logged?.rest_sec));
   const [dist, setDist] = useState(init(logged?.distance_m));
-  const done = Boolean(logged);
+  const done = isDone(logged);
 
   const values = () => ({
     load_kg: tracking === "weight_reps" || tracking === "weight_time" ? numOrNull(load) ?? defaults.load : null,
@@ -90,7 +101,8 @@ function SetRow({ n, tag, tracking, logged, defaults, onToggle, onUpdate }) {
     ...(hasRest(tracking) ? { rest_sec: parseClockTyped(rest) ?? defaults.rest } : {}),
   });
 
-  const blur = () => done && onUpdate(values());
+  const typed = () => [load, reps, time, rest, dist].some((v) => String(v).trim() !== "");
+  const blur = () => (done ? onUpdate(values()) : onDraft && typed() && onDraft(values()));
   const ph = (v) => (v == null ? "–" : String(v));
   // Show what was typed as a clock (30 -> 0:30) once the box is left.
   const timeInput = (value, set, def, fallback) => (
@@ -151,6 +163,8 @@ const COLS = { 1: " one", 2: "", 3: " three" };
 
 // ---------- Set grid (shared by the client player and Nordic PT) ----------
 
+export { isDone };
+
 export function lastTimeText(last) {
   return last.sets
     .map((s) =>
@@ -180,7 +194,7 @@ function setDefaults(item, last, n) {
   };
 }
 
-export function SetsGrid({ item, sets, last, extra, onAddSet, onToggle, onUpdate, restSec }) {
+export function SetsGrid({ item, sets, last, extra, onAddSet, onToggle, onUpdate, onDraft, restSec }) {
   const tracking = item.exercise?.tracking ?? "weight_reps";
   const count = Math.max(item.sets || 1, ...Object.keys(sets).map(Number)) + extra;
   const defaultsFor = (n) => setDefaults(item, last, n);
@@ -199,13 +213,14 @@ export function SetsGrid({ item, sets, last, extra, onAddSet, onToggle, onUpdate
         </div>
         {Array.from({ length: count }, (_, i) => i + 1).map((n) => (
           <SetRow
-            key={`${n}-${sets[n]?.id ?? "new"}`}
+            key={rowKey(n, sets[n])}
             n={n}
             tracking={tracking}
             logged={sets[n]}
             defaults={defaultsFor(n)}
             onToggle={(v) => onToggle(item, n, v, restSec)}
             onUpdate={(v) => onUpdate(item, n, v)}
+            onDraft={onDraft && ((v) => onDraft(item, n, v))}
           />
         ))}
       </div>
@@ -254,7 +269,7 @@ export function ExerciseHeader({ item, label, restSec, nextLabel, badge }) {
 // One set of each exercise back to back, then rest = one round. Each round's
 // rows are the same set_number for every exercise, so logs, "last time" and
 // PRs work exactly like straight sets.
-export function SupersetRounds({ block, letter, sets, last, prs, extraRounds = 0, onAddRound, onToggle, onUpdate }) {
+export function SupersetRounds({ block, letter, sets, last, prs, extraRounds = 0, onAddRound, onToggle, onUpdate, onDraft }) {
   const items = block.items;
   const rest = Math.max(0, ...items.map((i) => i.rest_sec || 0));
   const logged = items.flatMap((it) => Object.keys(sets[it.id] ?? {}).map(Number));
@@ -299,7 +314,7 @@ export function SupersetRounds({ block, letter, sets, last, prs, extraRounds = 0
                     <b className="yellow">{label(i)}</b> {item.exercise?.name} · {HEADS[tracking].join(" / ")}
                   </div>
                   <SetRow
-                    key={`${n}-${sets[item.id]?.[n]?.id ?? "new"}`}
+                    key={rowKey(n, sets[item.id]?.[n])}
                     n={n}
                     tag={label(i)}
                     tracking={tracking}
@@ -307,6 +322,7 @@ export function SupersetRounds({ block, letter, sets, last, prs, extraRounds = 0
                     defaults={setDefaults(item, last[item.exercise_id], n)}
                     onToggle={(v) => onToggle(item, n, v, isLast ? rest || null : 0)}
                     onUpdate={(v) => onUpdate(item, n, v)}
+                    onDraft={onDraft && ((v) => onDraft(item, n, v))}
                   />
                   {isLast && rest > 0 && <div className="tiny faint round-rest">Rest {formatClock(rest)}</div>}
                 </div>
@@ -325,7 +341,7 @@ export function SupersetRounds({ block, letter, sets, last, prs, extraRounds = 0
 // ---------- Exercise within a straight-sets block ----------
 
 // `label`/`restSec`/`nextLabel` come from setItemProps() for supersets.
-export function ExerciseSets({ item, sets, last, isPR, extra, onAddSet, onToggle, onUpdate, label, restSec, nextLabel }) {
+export function ExerciseSets({ item, sets, last, isPR, extra, onAddSet, onToggle, onUpdate, onDraft, label, restSec, nextLabel }) {
   return (
     <div className="exercise">
       <ExerciseHeader
@@ -342,7 +358,7 @@ export function ExerciseSets({ item, sets, last, isPR, extra, onAddSet, onToggle
         }
       />
       {last && <div className="tiny faint mt-8">Last time: {lastTimeText(last)}</div>}
-      <SetsGrid item={item} sets={sets} last={last} extra={extra} onAddSet={onAddSet} onToggle={onToggle} onUpdate={onUpdate} restSec={restSec} />
+      <SetsGrid item={item} sets={sets} last={last} extra={extra} onAddSet={onAddSet} onToggle={onToggle} onUpdate={onUpdate} onDraft={onDraft} restSec={restSec} />
     </div>
   );
 }
