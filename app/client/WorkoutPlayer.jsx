@@ -442,24 +442,34 @@ export const nextTimer = (t) => (t ? startStep(t.steps.slice(1)) : null);
 
 export function RestBar({ rest, onDone, onAdd }) {
   const [now, setNow] = useState(Date.now());
-  const fired = useRef(false);
+  // The ticking interval itself moves on when time is up. (Doing it in a
+  // render effect let the 4-times-a-second re-render cancel the hand-over,
+  // which froze the bar at 0:00 between sides.)
+  const doneRef = useRef(onDone);
   useEffect(() => {
-    fired.current = false;
-    const id = setInterval(() => setNow(Date.now()), 250);
-    return () => clearInterval(id);
-  }, [rest.endsAt]);
+    doneRef.current = onDone;
+  });
+  useEffect(() => {
+    let fired = false;
+    let handOver;
+    const id = setInterval(() => {
+      const t = Date.now();
+      setNow(t);
+      if (!fired && t >= rest.endsAt) {
+        fired = true;
+        go();
+        vibrate();
+        handOver = setTimeout(() => doneRef.current(), rest.steps.length === 1 ? 1200 : 300);
+      }
+    }, 250);
+    return () => {
+      clearInterval(id);
+      clearTimeout(handOver);
+    };
+  }, [rest.endsAt, rest.steps.length]);
   const left = Math.max(0, (rest.endsAt - now) / 1000);
   const step = rest.steps[0];
   const last = rest.steps.length === 1;
-  useEffect(() => {
-    if (left <= 0 && !fired.current) {
-      fired.current = true;
-      go();
-      vibrate();
-      const t = setTimeout(onDone, last ? 1200 : 300);
-      return () => clearTimeout(t);
-    }
-  }, [left, onDone, last]);
 
   return (
     <div className={`rest-bar ${step.kind}`}>

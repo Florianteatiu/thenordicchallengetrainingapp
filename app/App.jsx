@@ -27,6 +27,7 @@ import JourneyPage from "./client/JourneyPage";
 import ChatPage from "./client/ChatPage";
 import CheckinPage from "./client/CheckinPage";
 import WelcomeFlow from "./client/WelcomeFlow";
+import WaitingApproval from "./client/WaitingApproval";
 
 import PtLayout from "./pt/PtLayout";
 import PtClientsPage from "./pt/PtClientsPage";
@@ -102,6 +103,9 @@ export default function App() {
       </Routes>
     );
   }
+
+  // New sign-ups wait for the coach to approve them (paying clients only).
+  if (!profile.approved_at || profile.archived) return <WaitingApproval />;
 
   if (profile.must_change_password)
     return (

@@ -47,6 +47,11 @@ in `.env.local` as `VITE_DEV_SUPABASE_URL` / `VITE_DEV_SUPABASE_ANON_KEY`,
 `npm run dev`, and drive it with Playwright
 (`executablePath: '/opt/pw-browsers/chromium'`). `npm run build` + `npx oxlint app` before pushing.
 
+## Access
+New sign-ups must be approved: `profiles.approved_at` (set only via RPC `approve_client`, coach-only;
+declining archives). Unapproved/archived clients see `client/WaitingApproval.jsx`; RLS (`is_approved()`)
+refuses their messages, check-ins, activities and uploads. Coach approves on the Clients page.
+
 ## Phase 2 features (where things live)
 - Chat: `messages` table (one conversation per client_id; optional set_log_id/session_id
   + context_label = comment on a set/workout), voice notes in private `voice-notes`
