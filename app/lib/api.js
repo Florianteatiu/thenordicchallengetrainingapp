@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 import { programDayDate } from "./dates";
 import { estimateWorkoutSec } from "./format";
+import { addKg, weeklyStep } from "./progression";
 
 function check({ data, error }) {
   if (error) throw error;
@@ -247,8 +248,38 @@ export async function activateProgram(id) {
   notify("program", id);
 }
 
-export async function copyWeek(programId, fromWeek, toWeek) {
+const weekDayIds = async (programId, week) =>
+  check(await supabase.from("program_days").select("id").eq("program_id", programId).eq("week", week)).map((d) => d.id);
+
+// Copies a week. With `progress`, the copied workouts get the weekly
+// progression for each week of distance (week 1 -> week 3 = 2 weeks' worth).
+export async function copyWeek(programId, fromWeek, toWeek, { progress = false } = {}) {
+  const before = new Set(await weekDayIds(programId, toWeek));
   check(await supabase.rpc("copy_week", { p_program_id: programId, p_from_week: fromWeek, p_to_week: toWeek }));
+  if (!progress || toWeek <= fromWeek) return 0;
+  const added = (await weekDayIds(programId, toWeek)).filter((id) => !before.has(id));
+  return applyProgression(added, toWeek - fromWeek);
+}
+
+// Adds `weeks` × the weekly step (lib/progression.js) to the loads in these
+// program days' workouts. Returns how many loads changed.
+export async function applyProgression(programDayIds, weeks) {
+  if (!programDayIds.length || !weeks) return 0;
+  const days = check(
+    await supabase
+      .from("program_days")
+      .select("id, workout:workouts(workout_blocks(name, block_exercises(id, load, exercise:exercises(name, category, body_region))))")
+      .in("id", programDayIds),
+  );
+  const updates = [];
+  for (const d of days)
+    for (const b of d.workout?.workout_blocks ?? [])
+      for (const it of b.block_exercises ?? []) {
+        const next = addKg(it.load, weeklyStep(it.exercise, b.name) * weeks);
+        if (next !== it.load) updates.push({ id: it.id, load: next });
+      }
+  for (const u of updates) check(await supabase.from("block_exercises").update({ load: u.load }).eq("id", u.id));
+  return updates.length;
 }
 
 export async function addTemplateToDay(programId, week, day, workoutId) {

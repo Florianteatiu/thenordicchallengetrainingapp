@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Plus, Search } from "lucide-react";
-import { saveExercise } from "../lib/api";
+import { listExercises, saveExercise } from "../lib/api";
 import { CATEGORIES, EQUIPMENT, TRACKING, categoryLabel, exerciseMeta, regionLabel } from "../lib/format";
 import RegionChips, { matchesFilter } from "./RegionChips";
 import { ErrorBox, Modal } from "./ui";
@@ -28,7 +28,16 @@ export default function ExercisePicker({ exercises, onPick, onCreated, onClose }
   async function create() {
     setError(null);
     try {
-      const ex = await saveExercise({ name: q.trim(), category: newCat, tracking: newTracking, equipment: newEquipment || null, unilateral: newUnilateral });
+      let ex;
+      try {
+        ex = await saveExercise({ name: q.trim(), category: newCat, tracking: newTracking, equipment: newEquipment || null, unilateral: newUnilateral });
+      } catch (e) {
+        // The connection can drop after the exercise was already created:
+        // look it up before showing an error.
+        if (e.code) throw e;
+        ex = (await listExercises()).find((x) => x.name.toLowerCase() === q.trim().toLowerCase() && (x.equipment ?? "") === (newEquipment || ""));
+        if (!ex) throw e;
+      }
       onCreated?.(ex);
       onPick(ex);
     } catch (e) {

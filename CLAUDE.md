@@ -105,6 +105,11 @@ client/WorkoutPlayer.jsx).
   light and the same every week. Weekly progression applies only to the main work:
   +2.5 kg/week on big lower-body lifts (deadlift, squat, hip thrust, lunges), +1 kg/week
   on upper-body lifts.
+- Built into "Copy week" (Add weekly progression, on by default): `lib/progression.js`
+  (`weeklyStep`/`addKg`) + `applyProgression` in lib/api.js. Only plain kg loads change;
+  core, cardio and warm-up/cool-down/mobility blocks stay the same.
+- Flaky networks (VPN, gym Wi-Fi): `lib/supabase.js` retries repeatable requests
+  (reads, updates, deletes, upserts — never inserts/RPCs/auth/storage).
 
 ## Roadmap
 - Phase 1 (done): auth, exercise library, workout + program templates,
