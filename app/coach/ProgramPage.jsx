@@ -174,15 +174,18 @@ function AddWorkoutModal({ programId, week, day, onClose, onAdded }) {
 }
 
 function CopyWeekModal({ program, fromWeek, onClose, onCopied }) {
-  const [target, setTarget] = useState(Math.min(fromWeek + 1, program.weeks + 1));
+  const later = Array.from({ length: Math.max(0, program.weeks - fromWeek) }, (_, i) => fromWeek + i + 1);
+  const [target, setTarget] = useState(later.length > 1 ? "rest" : Math.min(fromWeek + 1, program.weeks + 1));
+  const [progress, setProgress] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const options = Array.from({ length: program.weeks + 1 }, (_, i) => i + 1).filter((w) => w !== fromWeek);
+  const targets = target === "rest" ? later : [Number(target)];
 
   async function submit() {
     setBusy(true);
     try {
-      await copyWeek(program.id, fromWeek, target);
+      for (const w of targets) await copyWeek(program.id, fromWeek, w, { progress });
       onCopied();
     } catch (e) {
       setError(e);
@@ -207,7 +210,8 @@ function CopyWeekModal({ program, fromWeek, onClose, onCopied }) {
     >
       <label className="field">
         <span>Copy all workouts into</span>
-        <select className="select" value={target} onChange={(e) => setTarget(Number(e.target.value))}>
+        <select className="select" value={target} onChange={(e) => setTarget(e.target.value === "rest" ? "rest" : Number(e.target.value))}>
+          {later.length > 1 && <option value="rest">All the following weeks ({later[0]}–{later[later.length - 1]})</option>}
           {options.map((w) => (
             <option key={w} value={w}>
               Week {w}
@@ -216,7 +220,15 @@ function CopyWeekModal({ program, fromWeek, onClose, onCopied }) {
           ))}
         </select>
       </label>
-      <p className="small muted">Each workout is copied, so you can progress the new week (more weight, more reps) without touching this one.</p>
+      <label className="row gap-8 mt-12" style={{ alignItems: "flex-start", cursor: "pointer" }}>
+        <input type="checkbox" checked={progress} onChange={(e) => setProgress(e.target.checked)} style={{ marginTop: 3 }} />
+        <span className="small">
+          <b>Add weekly progression</b>
+          <br />
+          <span className="muted">+2.5 kg per week on lower-body lifts, +1 kg on upper-body lifts. Warm-ups, core, cardio and anything that isn't a kg weight stay the same.</span>
+        </span>
+      </label>
+      <p className="small muted">Each workout is copied, so you can still adjust any week by hand afterwards.</p>
       <ErrorBox error={error} />
     </Modal>
   );

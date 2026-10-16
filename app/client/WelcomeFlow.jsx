@@ -6,10 +6,12 @@ import { firstName } from "../lib/format";
 import { COACH_FIRST_NAME, WELCOME_VIDEO_URL } from "../config";
 import Companion from "../components/Companion";
 import PushToggle from "../components/PushToggle";
+import TrainingWeek from "../components/TrainingWeek";
 import VideoEmbed from "../components/VideoEmbed";
 import { ErrorBox, useAsync } from "../components/ui";
 
 const GOALS = ["Get stronger", "Lose fat", "Build muscle", "Run further", "Feel fitter", "Build a habit", "Train for an event"];
+const MAX_GOALS = 2;
 const EQUIPMENT = ["Full gym", "Home dumbbells", "Kettlebell", "Bands", "Bodyweight only", "Pool access", "Bike"];
 
 // Adds or removes a quick-pick phrase in a comma-separated text.
@@ -32,19 +34,51 @@ function Chips({ options, text, onChange }) {
   );
 }
 
+// Goals are saved as "Get stronger, Run further — own words".
+const GOAL_SEP = " — ";
+function splitGoals(text) {
+  if (!text) return { picks: [], note: "" };
+  const [head, ...rest] = text.split(GOAL_SEP);
+  const parts = head.split(",").map((p) => p.trim()).filter(Boolean);
+  if (!parts.length || !parts.every((p) => GOALS.includes(p))) return { picks: [], note: text };
+  return { picks: parts.slice(0, MAX_GOALS), note: rest.join(GOAL_SEP) };
+}
+function joinGoals(picks, note) {
+  return [picks.join(", "), note.trim()].filter(Boolean).join(GOAL_SEP) || null;
+}
+
+// Top goals: at most MAX_GOALS can be ticked, so the client has to choose.
+function GoalPicker({ picks, onChange }) {
+  const full = picks.length >= MAX_GOALS;
+  return (
+    <div className="chips">
+      {GOALS.map((g) => {
+        const on = picks.includes(g);
+        return (
+          <button key={g} type="button" className={`chip${on ? " active" : ""}`} disabled={!on && full} onClick={() => onChange(on ? picks.filter((p) => p !== g) : [...picks, g])}>
+            {g}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // First sign-in for a new client: a welcome from the coach, then goals,
-// injuries/equipment and notifications, all saved to their profile.
+// training days, injuries/equipment and notifications, all saved to their profile.
 export default function WelcomeFlow() {
   const { profile, setProfile } = useAuth();
   const { data: coach } = useAsync(getCoachProfile, []);
   const [step, setStep] = useState(0);
-  const [goals, setGoals] = useState(profile.goals ?? "");
+  const [goalPicks, setGoalPicks] = useState(() => splitGoals(profile.goals).picks);
+  const [goalNote, setGoalNote] = useState(() => splitGoals(profile.goals).note);
+  const [week, setWeek] = useState({ perWeek: profile.training_days_per_week ?? null, days: profile.training_days ?? [], minutes: profile.session_minutes ?? null });
   const [injuries, setInjuries] = useState(profile.injuries ?? "");
   const [equipment, setEquipment] = useState(profile.equipment ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const name = firstName(profile.full_name);
-  const STEPS = 4;
+  const STEPS = 5;
 
   async function save(patch, next) {
     setBusy(true);
@@ -81,23 +115,34 @@ export default function WelcomeFlow() {
             </Companion>
           )}
           <div className="muted">
-            Three quick questions so I can build your training around you. It takes about a minute.
+            A few quick questions so I can build your training around you. It takes about a minute.
           </div>
         </div>
       )}
 
       {step === 1 && (
         <div className="welcome-body" key="1">
-          <div className="eyebrow">1 of 3</div>
+          <div className="eyebrow">1 of 4</div>
           <div className="h1">What are you training for?</div>
-          <Chips options={GOALS} text={goals} onChange={setGoals} />
-          <textarea className="textarea" value={goals} onChange={(e) => setGoals(e.target.value)} placeholder="In your own words: first pull-up, 10 km under an hour, feel good in summer…" style={{ minHeight: 110 }} />
+          <div className="muted">Pick your top {MAX_GOALS} goals. Choosing helps me focus your training where it matters most.</div>
+          <GoalPicker picks={goalPicks} onChange={setGoalPicks} />
+          <div className="small faint">{goalPicks.length} of {MAX_GOALS} picked</div>
+          <textarea className="textarea" value={goalNote} onChange={(e) => setGoalNote(e.target.value)} placeholder="In your own words (optional): first pull-up, 10 km under an hour, feel good in summer…" style={{ minHeight: 90 }} />
         </div>
       )}
 
       {step === 2 && (
         <div className="welcome-body" key="2">
-          <div className="eyebrow">2 of 3</div>
+          <div className="eyebrow">2 of 4</div>
+          <div className="h1">Your training week</div>
+          <div className="muted">So your plan fits your life, not the other way round.</div>
+          <TrainingWeek perWeek={week.perWeek} days={week.days} minutes={week.minutes} onChange={setWeek} />
+        </div>
+      )}
+
+      {step === 3 && (
+        <div className="welcome-body" key="3">
+          <div className="eyebrow">3 of 4</div>
           <div className="h1">Your body & your kit</div>
           <label className="field">
             <span>Any injuries or things to be careful with?</span>
@@ -111,9 +156,9 @@ export default function WelcomeFlow() {
         </div>
       )}
 
-      {step === 3 && (
-        <div className="welcome-body" key="3">
-          <div className="eyebrow">3 of 3</div>
+      {step === 4 && (
+        <div className="welcome-body" key="4">
+          <div className="eyebrow">4 of 4</div>
           <div className="h1">Stay in the loop</div>
           <div className="muted">
             Get a nudge on training days, and know straight away when {COACH_FIRST_NAME} replies or comments on your workout.
@@ -136,16 +181,25 @@ export default function WelcomeFlow() {
           </button>
         )}
         {step === 1 && (
-          <button className="btn btn-primary btn-lg btn-block" disabled={busy} onClick={() => save({ goals: goals.trim() || null }, 2)}>
+          <button className="btn btn-primary btn-lg btn-block" disabled={busy || goalPicks.length === 0} onClick={() => save({ goals: joinGoals(goalPicks, goalNote) }, 2)}>
             Next <ArrowRight size={18} />
           </button>
         )}
         {step === 2 && (
-          <button className="btn btn-primary btn-lg btn-block" disabled={busy} onClick={() => save({ injuries: injuries.trim() || null, equipment: equipment.trim() || null }, 3)}>
+          <button
+            className="btn btn-primary btn-lg btn-block"
+            disabled={busy || !week.perWeek || !week.minutes}
+            onClick={() => save({ training_days_per_week: week.perWeek, training_days: week.days.length ? week.days : null, session_minutes: week.minutes }, 3)}
+          >
             Next <ArrowRight size={18} />
           </button>
         )}
         {step === 3 && (
+          <button className="btn btn-primary btn-lg btn-block" disabled={busy} onClick={() => save({ injuries: injuries.trim() || null, equipment: equipment.trim() || null }, 4)}>
+            Next <ArrowRight size={18} />
+          </button>
+        )}
+        {step === 4 && (
           <button className="btn btn-primary btn-lg btn-block" disabled={busy} onClick={() => save({ onboarded_at: new Date().toISOString() }, "done")}>
             {busy ? "One moment…" : "Start training"}
           </button>

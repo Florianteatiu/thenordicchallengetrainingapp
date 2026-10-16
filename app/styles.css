@@ -181,6 +181,9 @@ input[type="date"].input::-webkit-date-and-time-value { text-align: left; margin
   padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--text-2);
 }
 .chip.active { background: var(--yellow); border-color: var(--yellow); color: var(--on-yellow); }
+.chip:disabled { opacity: 0.35; cursor: default; }
+.chips-days { flex-wrap: nowrap; }
+.chips-days .chip { flex: 1 1 0; min-width: 0; padding: 8px 0; text-align: center; }
 
 /* ---------- Avatar ---------- */
 .avatar {
