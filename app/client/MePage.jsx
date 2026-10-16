@@ -7,6 +7,7 @@ import { updateProfile, uploadAvatar } from "../lib/api";
 import { LEVELS, POINTS, XP_PER_WORKOUT, levelFor, totalXp } from "../lib/gamify";
 import { Avatar, CommitInput, ErrorBox } from "../components/ui";
 import PushToggle from "../components/PushToggle";
+import TrainingWeek from "../components/TrainingWeek";
 
 function ChangePassword() {
   const [open, setOpen] = useState(false);
@@ -66,6 +67,14 @@ export default function MePage() {
   async function save(field, value) {
     try {
       setProfile(await updateProfile(profile.id, { [field]: field === "full_name" ? value.trim() || profile.full_name : value.trim() || null }));
+    } catch (e) {
+      setError(e);
+    }
+  }
+
+  async function saveWeek({ perWeek, days }) {
+    try {
+      setProfile(await updateProfile(profile.id, { training_days_per_week: perWeek, training_days: days.length ? days : null }));
     } catch (e) {
       setError(e);
     }
@@ -145,6 +154,7 @@ export default function MePage() {
           <span>My goals</span>
           <CommitInput multiline value={profile.goals} onCommit={(v) => save("goals", v)} placeholder="What do you want to achieve?" />
         </label>
+        <TrainingWeek perWeek={profile.training_days_per_week} days={profile.training_days} onChange={saveWeek} />
         <label className="field">
           <span>Injuries or limitations</span>
           <CommitInput multiline value={profile.injuries} onCommit={(v) => save("injuries", v)} placeholder="Anything I should know about?" />

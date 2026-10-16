@@ -76,7 +76,9 @@ refuses their messages, check-ins, activities and uploads. Coach approves on the
   calling notify with {type:"daily"} (deduped by `reminder_log`).
 - Share card: `lib/shareCard.js` (canvas, 1080×1920; laid out with a running y that must
   end above SAFE_BOTTOM, Instagram's covered area). Welcome flow: `client/WelcomeFlow.jsx`
-  (until `profiles.onboarded_at` is set; video = `WELCOME_VIDEO_URL` in config).
+  (until `profiles.onboarded_at` is set; video = `WELCOME_VIDEO_URL` in config). Goals: top 2 only,
+  saved in `profiles.goals` as "Goal A, Goal B — own words". Availability: `training_days_per_week`
+  + `training_days` (1=Mon…7=Sun), picker `components/TrainingWeek.jsx` (also on Me + coach client page).
 - Needs attention list: `coach/ClientsPage.jsx`. Lift charts: `components/LiftProgress.jsx`.
 - Exercise videos: upload to public `exercise-videos` bucket or paste a YouTube/Vimeo link;
   played in-app by `components/VideoEmbed.jsx`.
@@ -104,7 +106,8 @@ client/WorkoutPlayer.jsx).
 - Warm-up blocks (block name starts with "Warm up") never progress: keep their weights
   light and the same every week. Weekly progression applies only to the main work:
   +2.5 kg/week on big lower-body lifts (deadlift, squat, hip thrust, lunges), +1 kg/week
-  on upper-body lifts.
+  on upper-body lifts and smaller leg machines (adductor, leg curl, calf raise). Exercises
+  Florian already progressed by hand are left alone.
 - Built into "Copy week" (Add weekly progression, on by default): `lib/progression.js`
   (`weeklyStep`/`addKg`) + `applyProgression` in lib/api.js. Only plain kg loads change;
   core, cardio and warm-up/cool-down/mobility blocks stay the same.

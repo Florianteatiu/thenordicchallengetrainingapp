@@ -20,6 +20,7 @@ import { useAuth } from "../auth/AuthProvider";
 import Chat from "../components/Chat";
 import JourneyView from "../components/JourneyView";
 import LiftProgress from "../components/LiftProgress";
+import TrainingWeek from "../components/TrainingWeek";
 import { ClientCheckins } from "./InboxPage";
 
 const STATUS_TONE = { active: "pill-green", draft: "pill-yellow", completed: "" };
@@ -192,9 +193,10 @@ export default function ClientPage() {
     return { client, programs, sessions };
   }, [id]);
 
-  async function saveField(field, value) {
+  const saveField = (field, value) => saveFields({ [field]: value });
+  async function saveFields(patch) {
     try {
-      const client = await updateProfile(id, { [field]: value });
+      const client = await updateProfile(id, patch);
       setData((d) => ({ ...d, client }));
     } catch (e) {
       setActionError(e);
@@ -344,6 +346,12 @@ export default function ClientPage() {
             <span>Goals</span>
             <CommitInput multiline value={client.goals} onCommit={(v) => saveField("goals", v)} placeholder="e.g. First pull-up, run 10 km under 55 min" />
           </label>
+          <TrainingWeek
+            coach
+            perWeek={client.training_days_per_week}
+            days={client.training_days}
+            onChange={({ perWeek, days }) => saveFields({ training_days_per_week: perWeek, training_days: days.length ? days : null })}
+          />
           <label className="field">
             <span>Injuries & limitations</span>
             <CommitInput multiline value={client.injuries} onCommit={(v) => saveField("injuries", v)} />
@@ -356,7 +364,7 @@ export default function ClientPage() {
             <span>Weekly target (workouts)</span>
             <CommitInput type="number" min={1} max={14} value={String(client.weekly_target)} onCommit={(v) => saveField("weekly_target", Number(v) || 3)} />
           </label>
-          <div className="small faint">The client can see and edit their own goals, injuries and equipment in their Me tab.</div>
+          <div className="small faint">The client can see and edit their own goals, training days, injuries and equipment in their Me tab.</div>
           <div className="card mt-8">
             <div className="h3">Login</div>
             <div className="small muted mt-4">

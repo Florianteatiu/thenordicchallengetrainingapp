@@ -1,5 +1,5 @@
 // Florian's weekly progression (see CLAUDE.md "coaching rules"):
-// +2.5 kg per week on lower-body lifts, +1 kg per week on upper-body lifts.
+// +2.5 kg per week on big lower-body lifts, +1 kg per week on upper-body lifts.
 // Warm-up / cool-down / mobility blocks never progress, nor do core, cardio
 // and mobility exercises, nor loads that aren't a plain kg number
 // ("Bodyweight", "Plate 5", "70%-80% HR").
@@ -9,14 +9,16 @@ export const UPPER_STEP = 1;
 
 const FIXED_BLOCK = /^\s*(war[mn]?[\s,.-]*up|cool[\s-]*down|mobility|stretch)/i;
 const CORE_NAME = /plank|sit.?up|crunch|twist|toe touch|pallof|trunk rotation|punch|dead bug|leg raise|knee raise|\bhold\b/i;
-const LOWER_NAME = /deadlift|squat|hip thrust|lunge|\brdl\b|step.?up|calf|leg press|glute|adductor|abductor|good morning|leg curl|leg extension|hamstring/i;
+// Big lower-body lifts get the 2.5 kg step; smaller leg machines (adductor,
+// leg curl, calf raise…) go up like upper-body lifts, by 1 kg.
+const BIG_LOWER = /deadlift|squat|hip thrust|glute bridge|lunge|\brdl\b|step.?up|leg press|good morning/i;
 
 // kg added per week for this exercise in this block (0 = stays the same).
 export function weeklyStep(exercise, blockName) {
   if (!exercise || FIXED_BLOCK.test(blockName ?? "")) return 0;
   if (exercise.category !== "strength") return 0;
   if (CORE_NAME.test(exercise.name)) return 0;
-  if (exercise.body_region === "lower" || LOWER_NAME.test(exercise.name)) return LOWER_STEP;
+  if (BIG_LOWER.test(exercise.name)) return LOWER_STEP;
   return UPPER_STEP;
 }
 
