@@ -72,9 +72,9 @@ export default function MePage() {
     }
   }
 
-  async function saveWeek({ perWeek, days }) {
+  async function saveWeek({ perWeek, days, minutes }) {
     try {
-      setProfile(await updateProfile(profile.id, { training_days_per_week: perWeek, training_days: days.length ? days : null }));
+      setProfile(await updateProfile(profile.id, { training_days_per_week: perWeek, training_days: days.length ? days : null, session_minutes: minutes ?? null }));
     } catch (e) {
       setError(e);
     }
@@ -154,7 +154,7 @@ export default function MePage() {
           <span>My goals</span>
           <CommitInput multiline value={profile.goals} onCommit={(v) => save("goals", v)} placeholder="What do you want to achieve?" />
         </label>
-        <TrainingWeek perWeek={profile.training_days_per_week} days={profile.training_days} onChange={saveWeek} />
+        <TrainingWeek perWeek={profile.training_days_per_week} days={profile.training_days} minutes={profile.session_minutes} onChange={saveWeek} />
         <label className="field">
           <span>Injuries or limitations</span>
           <CommitInput multiline value={profile.injuries} onCommit={(v) => save("injuries", v)} placeholder="Anything I should know about?" />

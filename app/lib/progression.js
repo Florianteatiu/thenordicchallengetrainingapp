@@ -18,6 +18,8 @@ export function weeklyStep(exercise, blockName) {
   if (!exercise || FIXED_BLOCK.test(blockName ?? "")) return 0;
   if (exercise.category !== "strength") return 0;
   if (CORE_NAME.test(exercise.name)) return 0;
+  // Overhead lifts (overhead walking lunge…) are limited by the shoulders: upper-body step.
+  if (/overhead/i.test(exercise.name)) return UPPER_STEP;
   if (BIG_LOWER.test(exercise.name)) return LOWER_STEP;
   return UPPER_STEP;
 }

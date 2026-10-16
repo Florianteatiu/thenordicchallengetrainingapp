@@ -350,7 +350,8 @@ export default function ClientPage() {
             coach
             perWeek={client.training_days_per_week}
             days={client.training_days}
-            onChange={({ perWeek, days }) => saveFields({ training_days_per_week: perWeek, training_days: days.length ? days : null })}
+            minutes={client.session_minutes}
+            onChange={({ perWeek, days, minutes }) => saveFields({ training_days_per_week: perWeek, training_days: days.length ? days : null, session_minutes: minutes ?? null })}
           />
           <label className="field">
             <span>Injuries & limitations</span>

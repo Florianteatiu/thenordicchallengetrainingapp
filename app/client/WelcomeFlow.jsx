@@ -72,7 +72,7 @@ export default function WelcomeFlow() {
   const [step, setStep] = useState(0);
   const [goalPicks, setGoalPicks] = useState(() => splitGoals(profile.goals).picks);
   const [goalNote, setGoalNote] = useState(() => splitGoals(profile.goals).note);
-  const [week, setWeek] = useState({ perWeek: profile.training_days_per_week ?? null, days: profile.training_days ?? [] });
+  const [week, setWeek] = useState({ perWeek: profile.training_days_per_week ?? null, days: profile.training_days ?? [], minutes: profile.session_minutes ?? null });
   const [injuries, setInjuries] = useState(profile.injuries ?? "");
   const [equipment, setEquipment] = useState(profile.equipment ?? "");
   const [busy, setBusy] = useState(false);
@@ -136,7 +136,7 @@ export default function WelcomeFlow() {
           <div className="eyebrow">2 of 4</div>
           <div className="h1">Your training week</div>
           <div className="muted">So your plan fits your life, not the other way round.</div>
-          <TrainingWeek perWeek={week.perWeek} days={week.days} onChange={setWeek} />
+          <TrainingWeek perWeek={week.perWeek} days={week.days} minutes={week.minutes} onChange={setWeek} />
         </div>
       )}
 
@@ -188,8 +188,8 @@ export default function WelcomeFlow() {
         {step === 2 && (
           <button
             className="btn btn-primary btn-lg btn-block"
-            disabled={busy || !week.perWeek}
-            onClick={() => save({ training_days_per_week: week.perWeek, training_days: week.days.length ? week.days : null }, 3)}
+            disabled={busy || !week.perWeek || !week.minutes}
+            onClick={() => save({ training_days_per_week: week.perWeek, training_days: week.days.length ? week.days : null, session_minutes: week.minutes }, 3)}
           >
             Next <ArrowRight size={18} />
           </button>
